@@ -1,3 +1,5 @@
+use std::{fs::File, io::BufReader, thread, sync::Arc};
+
 use coding::BinEncoder;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
@@ -6,6 +8,7 @@ mod context;
 mod tone;
 
 use context::Context;
+use rodio::{Decoder, OutputStream, Source};
 
 use crate::coding::{dtmf_decode::DtmfDecoder, BinDecoder};
 
@@ -42,6 +45,12 @@ fn main() {
     // let data = fs::read("/home/connorslade/Downloads/NiceToaster.png").unwrap();
     let mut ctx = Context::new(BinEncoder::new(DATA));
 
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let file = BufReader::new(File::open("./egg.mp3").unwrap());
+    // let source = Decoder::new(file).unwrap();
+    let audio = Arc::new(stream_handle.play_once(file).unwrap());
+    audio.pause();
+
     let stream = device
         .build_output_stream(
             &supported_config.into(),
@@ -60,16 +69,16 @@ fn main() {
         )
         .unwrap();
 
-    let mut tmp = vec!['a'; 3];
     let mut decode = DtmfDecoder::new(move |chr| {
-        println!("{}", chr);
-        tmp.push(chr);
-        while tmp.len() > 3 {
-            tmp.remove(0);
-        }
+        println!("[*] Receded Code: {}", chr);
 
-        if tmp[0] == 'D' && tmp[1] == 'A' && tmp[2] == 'D' {
-            println!("ALERT");
+        if chr == 'A' {
+            println!(" | Play Pause");
+            if audio.is_paused() {
+                audio.play();
+            } else {
+                audio.pause();
+            }
         }
     });
     let input_stream = device

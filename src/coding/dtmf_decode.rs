@@ -1,6 +1,6 @@
 use std::{f32::consts::PI, time::Instant};
 
-use crate::SAMPLE_RATE;
+use crate::{SAMPLE_RATE, tone::Tone};
 
 /*
 - https://github.com/NHollmann/DTMF-Tool/blob/master/src/utils/dtmf.ts
@@ -19,6 +19,11 @@ pub struct DtmfDecoder {
     last: Option<u8>,
     last_timestamp: Instant,
     callback: Box<dyn FnMut(char) + Send + Sync + 'static>,
+}
+
+pub struct DtmfEncoder {
+    low: Tone,
+    high: Tone
 }
 
 impl DtmfDecoder {
@@ -47,11 +52,10 @@ impl DtmfDecoder {
             self.data.remove(0);
         }
 
-        // println!("{}", Instant::now().elapsed().as_millis());
         let first = self.data[0];
         if self.data.iter().any(|x| *x != first)
             || (Some(first) == self.last
-                && Instant::now().elapsed().as_millis() <= VALUE_INVALIDATE as u128)
+                && self.last_timestamp.elapsed().as_millis() <= VALUE_INVALIDATE as u128)
         {
             return;
         }
