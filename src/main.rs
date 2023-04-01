@@ -1,22 +1,18 @@
 use std::{fs::File, io::BufReader, sync::Arc};
 
-use coding::BinEncoder;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use rodio::OutputStream;
 
 mod coding;
 mod context;
 mod tone;
 
-use context::Context;
-use rodio::OutputStream;
+use coding::dtmf_decode::{DtmfDecoder, DtmfEncoder};
 
-use crate::coding::dtmf_decode::{DtmfDecoder, DtmfEncoder};
+use crate::coding::dtmf_decode;
 
-// const DATA: &[u8] = include_bytes!("../bee_movie.txt");
-const DATA: &[u8] = b"eggs fresh fresh eggs!";
+const DATA: &[u8] = b"Save the turtles!sp";
 const SAMPLE_RATE: u32 = 44100;
-// const PACKET_LENGTH: u32 = 16;
-// const PACKET_SLEEP: f32 = SAMPLE_RATE as f32 * 0.75;
 
 fn main() {
     let host = cpal::default_host();
@@ -42,16 +38,9 @@ fn main() {
 
     println!("[*] Hooked into `{}`", device.name().unwrap());
 
-    // let data = fs::read("/home/connorslade/Downloads/NiceToaster.png").unwrap();
-    let mut ctx = Context::new(BinEncoder::new(DATA));
-
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let file = BufReader::new(File::open("./egg.mp3").unwrap());
-    // let source = Decoder::new(file).unwrap();
-    let audio = Arc::new(stream_handle.play_once(file).unwrap());
-    audio.pause();
-
-    let mut dtmf = DtmfEncoder::new(&[b'D', b'A', b'B', b'C']);
+    let data = dtmf_decode::bin_to_dtmf(DATA);
+    println!("{:?}", data.iter().map(|x| *x as char).collect::<Vec<_>>());
+    let mut dtmf = DtmfEncoder::new(&data);
 
     let stream = device
         .build_output_stream(
@@ -72,8 +61,22 @@ fn main() {
         )
         .unwrap();
 
+    let mut out = Vec::new();
+    let mut skip = true;
     let mut decode = DtmfDecoder::new(move |chr| {
+        if skip {
+            skip = false;
+            println!("[*] Skip {}", chr);
+            return;
+        }
         println!("[*] Receded Code: {}", chr);
+        out.push(chr as u8);
+
+        let size = out.len();
+        if size > 2 && out[size - 2] == b'1' && out[size - 1] == b'#' {
+            let out = dtmf_decode::dtmf_to_bin(&out);
+            println!("{:?}", out.iter().map(|x| *x as char).collect::<String>());
+        }
     });
 
     let input_stream = device

@@ -1,5 +1,7 @@
 use std::{f32::consts::PI, time::Instant};
 
+use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
+
 use crate::{tone::Tone, SAMPLE_RATE};
 
 /*
@@ -30,7 +32,7 @@ pub struct DtmfEncoder {
 }
 
 impl DtmfEncoder {
-    const TIME: u32 = SAMPLE_RATE * 1;
+    const TIME: u32 = SAMPLE_RATE / 2;
     const SLEEP: u32 = SAMPLE_RATE / 4;
 
     // 0-9, a, b, d, c, *, #
@@ -40,7 +42,7 @@ impl DtmfEncoder {
             high: Tone::new(0.0),
             data: data.to_vec(),
             i: 0,
-            cooldown: 0
+            cooldown: 0,
         }
     }
 }
@@ -55,7 +57,7 @@ impl Iterator for DtmfEncoder {
         }
 
         if self.i % Self::TIME as usize == 0 {
-            let val = self.data.get(self.i /  Self::TIME as usize)?;
+            let val = self.data.get(self.i / Self::TIME as usize)?;
             let val = VAL.iter().enumerate().find(|x| x.1 == val).unwrap().0 as u8;
             let col = val % COL.len() as u8;
             let row = val / COL.len() as u8;
@@ -161,4 +163,30 @@ pub fn frequencies_to_dtmf(freqs: &[f32]) -> Option<u8> {
     }
 
     Some(VAL[row_max.index * 4 + col_max.index])
+}
+
+// -> (0 - 16)
+pub fn bin_to_dtmf(data: &[u8]) -> Vec<u8> {
+    let mut bits = BitVec::<u8, Lsb0>::new();
+    for i in data {
+        bits.extend(i.view_bits::<Lsb0>());
+    }
+
+    let mut out = Vec::new();
+    for i in bits.chunks(4) {
+        let num = (i[0] as u8) << 3 | (i[1] as u8) << 2 | (i[2] as u8) << 1 | (i[3]) as u8;
+        out.push(VAL[num as usize]);
+    }
+    out
+}
+
+pub fn dtmf_to_bin(dtmf: &[u8]) -> Vec<u8> {
+    let mut bits = BitVec::<u8, Lsb0>::new();
+
+    for i in dtmf {
+        let val = VAL.iter().enumerate().find(|x| x.1 == i).unwrap().0;
+        bits.extend(val.view_bits::<Lsb0>()[0..4].iter().rev());
+    }
+
+    bits.into_vec()
 }
