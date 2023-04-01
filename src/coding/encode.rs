@@ -45,6 +45,14 @@ impl Iterator for BinEncoder {
             self.wave = 0.03;
         }
 
+        #[cfg(debug_assertions)]
+        if self.index % 1000 == 0 {
+            print!(
+                "\r{:.2}%",
+                self.index as f32 / self.data.len() as f32 * 100.0
+            );
+        }
+
         let mut val = -(PI * self.wave).sin();
         if !bit {
             val /= 2.;
