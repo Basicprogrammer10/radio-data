@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader, thread, sync::Arc};
+use std::{fs::File, io::BufReader, sync::Arc};
 
 use coding::BinEncoder;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -8,9 +8,9 @@ mod context;
 mod tone;
 
 use context::Context;
-use rodio::{Decoder, OutputStream, Source};
+use rodio::OutputStream;
 
-use crate::coding::{dtmf_decode::DtmfDecoder, BinDecoder};
+use crate::coding::dtmf_decode::{DtmfDecoder, DtmfEncoder};
 
 // const DATA: &[u8] = include_bytes!("../bee_movie.txt");
 const DATA: &[u8] = b"eggs fresh fresh eggs!";
@@ -51,6 +51,8 @@ fn main() {
     let audio = Arc::new(stream_handle.play_once(file).unwrap());
     audio.pause();
 
+    let mut dtmf = DtmfEncoder::new(&[b'D', b'A', b'B', b'C']);
+
     let stream = device
         .build_output_stream(
             &supported_config.into(),
@@ -58,7 +60,8 @@ fn main() {
                 let mut last = 0.0;
                 for (i, x) in data.iter_mut().enumerate() {
                     if i % channels == 0 {
-                        last = ctx.next().unwrap_or(0.);
+                        // last = ctx.next().unwrap_or(0.);
+                        last = dtmf.next().unwrap_or(0.0);
                     }
 
                     *x = last;
@@ -71,16 +74,8 @@ fn main() {
 
     let mut decode = DtmfDecoder::new(move |chr| {
         println!("[*] Receded Code: {}", chr);
-
-        if chr == 'A' {
-            println!(" | Play Pause");
-            if audio.is_paused() {
-                audio.play();
-            } else {
-                audio.pause();
-            }
-        }
     });
+
     let input_stream = device
         .build_input_stream(
             &input_supported_config.into(),
@@ -100,7 +95,7 @@ fn main() {
         )
         .unwrap();
 
-    // stream.play().unwrap();
+    stream.play().unwrap();
     input_stream.play().unwrap();
     std::thread::park();
 }

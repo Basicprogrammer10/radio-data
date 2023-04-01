@@ -1,6 +1,6 @@
 use std::{f32::consts::PI, time::Instant};
 
-use crate::{SAMPLE_RATE, tone::Tone};
+use crate::{tone::Tone, SAMPLE_RATE};
 
 /*
 - https://github.com/NHollmann/DTMF-Tool/blob/master/src/utils/dtmf.ts
@@ -23,7 +23,51 @@ pub struct DtmfDecoder {
 
 pub struct DtmfEncoder {
     low: Tone,
-    high: Tone
+    high: Tone,
+    data: Vec<u8>,
+    i: usize,
+    cooldown: usize,
+}
+
+impl DtmfEncoder {
+    const TIME: u32 = SAMPLE_RATE * 1;
+    const SLEEP: u32 = SAMPLE_RATE / 4;
+
+    // 0-9, a, b, d, c, *, #
+    pub fn new(data: &[u8]) -> Self {
+        Self {
+            low: Tone::new(0.0),
+            high: Tone::new(0.0),
+            data: data.to_vec(),
+            i: 0,
+            cooldown: 0
+        }
+    }
+}
+
+impl Iterator for DtmfEncoder {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cooldown > 0 {
+            self.cooldown -= 1;
+            return Some(0.0);
+        }
+
+        if self.i % Self::TIME as usize == 0 {
+            let val = self.data.get(self.i /  Self::TIME as usize)?;
+            let val = VAL.iter().enumerate().find(|x| x.1 == val).unwrap().0 as u8;
+            let col = val % COL.len() as u8;
+            let row = val / COL.len() as u8;
+            self.low = Tone::new(COL[col as usize]);
+            self.high = Tone::new(ROW[row as usize]);
+            self.cooldown = Self::SLEEP as usize;
+        }
+
+        self.i = self.i.wrapping_add(1);
+        let out = (self.low.next()? * 0.5) + (self.high.next()? * 0.5);
+        Some(out)
+    }
 }
 
 impl DtmfDecoder {
