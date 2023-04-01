@@ -7,7 +7,7 @@ mod tone;
 
 use context::Context;
 
-use crate::coding::BinDecoder;
+use crate::coding::{dtmf_decode::DtmfDecoder, BinDecoder};
 
 // const DATA: &[u8] = include_bytes!("../bee_movie.txt");
 const DATA: &[u8] = b"eggs fresh fresh eggs!";
@@ -60,27 +60,38 @@ fn main() {
         )
         .unwrap();
 
-    let mut decode = BinDecoder::new();
+    let mut tmp = vec!['a'; 3];
+    let mut decode = DtmfDecoder::new(move |chr| {
+        println!("{}", chr);
+        tmp.push(chr);
+        while tmp.len() > 3 {
+            tmp.remove(0);
+        }
+
+        if tmp[0] == 'D' && tmp[1] == 'A' && tmp[2] == 'D' {
+            println!("ALERT");
+        }
+    });
     let input_stream = device
         .build_input_stream(
             &input_supported_config.into(),
             move |data: &[f32], _info: &cpal::InputCallbackInfo| {
-                // let mut work = Vec::new();
+                let mut work = Vec::new();
                 for (i, x) in data.iter().enumerate() {
                     if i % input_channels == 0 {
-                        decode.add(*x);
-                        // work.push(*x);
+                        // decode.add(*x);
+                        work.push(*x);
                     }
                 }
 
-                // coding::dtmf_decode::process(&work);
+                decode.process(&work);
             },
             |err| eprintln!("[-] Error: {:?}", err),
             None,
         )
         .unwrap();
 
-    stream.play().unwrap();
+    // stream.play().unwrap();
     input_stream.play().unwrap();
     std::thread::park();
 }

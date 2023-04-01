@@ -6,7 +6,7 @@ enum State {
 }
 
 pub struct Context {
-    encode: BinEncoder,
+    pub encode: BinEncoder,
     state: State,
     i: usize,
 }
