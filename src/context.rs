@@ -12,7 +12,7 @@ pub struct Context {
 }
 
 impl Context {
-    const HEAD_TIME: usize = SAMPLE_RATE as usize * 3;
+    const HEAD_TIME: usize = SAMPLE_RATE as usize * 1;
 
     pub fn new(encode: BinEncoder) -> Self {
         Self {
@@ -21,8 +21,12 @@ impl Context {
             i: 0,
         }
     }
+}
 
-    pub fn next(&mut self) -> Option<f32> {
+impl Iterator for Context {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
         self.i = self.i.wrapping_add(1);
 
         if self.i > Self::HEAD_TIME {

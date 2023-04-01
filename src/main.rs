@@ -8,6 +8,7 @@ mod context;
 mod tone;
 
 use context::Context;
+use hound::WavWriter;
 
 const DATA: &[u8] = b"mango";
 const SAMPLE_RATE: u32 = 44100;
@@ -28,16 +29,20 @@ fn main() {
 
     println!("Hooked into `{}`", device.name().unwrap());
 
-    let data = fs::read("/home/connorslade/Downloads/NiceToaster.png").unwrap();
-    let mut ctx = Context::new(BinEncoder::new(&data));
+    // let data = fs::read("/home/connorslade/Downloads/NiceToaster.png").unwrap();
+    let mut ctx = Context::new(BinEncoder::new(DATA));
 
-    let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 44100,
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-    let mut writer = hound::WavWriter::create("out.wav", spec).unwrap();
+    // let spec = hound::WavSpec {
+    //     channels: 1,
+    //     sample_rate: SAMPLE_RATE,
+    //     bits_per_sample: 32,
+    //     sample_format: hound::SampleFormat::Float,
+    // };
+    // let mut writer = WavWriter::create("out.wav", spec).unwrap();
+
+    // for i in ctx {
+    //     writer.write_sample(i).unwrap();
+    // }
 
     let stream = device
         .build_output_stream(
@@ -47,7 +52,6 @@ fn main() {
                 for (i, x) in data.iter_mut().enumerate() {
                     if i % channels == 0 {
                         last = ctx.next().unwrap_or(0.);
-                        writer.write_sample(last).unwrap();
                     }
 
                     *x = last;
