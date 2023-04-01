@@ -1,40 +1,37 @@
-use crate::coding::BinEncoder;
+use crate::{coding::BinEncoder, tone::Tone, SAMPLE_RATE};
+
+enum State {
+    HeadPadding(Tone),
+    Transmitting,
+}
 
 pub struct Context {
-    pub encode: BinEncoder,
-    pub last_val: Option<f32>,
-    pub hold_time: u8,
+    encode: BinEncoder,
+    state: State,
+    i: usize,
 }
 
 impl Context {
-    const HOLD_TIME: u8 = 2;
+    const HEAD_TIME: usize = SAMPLE_RATE as usize * 3;
 
     pub fn new(encode: BinEncoder) -> Self {
         Self {
             encode,
-            last_val: None,
-            hold_time: 0,
+            state: State::HeadPadding(Tone::new(440.0)),
+            i: 0,
         }
     }
 
     pub fn next(&mut self) -> Option<f32> {
-        self.encode.next()
+        self.i = self.i.wrapping_add(1);
 
-        // if let Some(i) = self.last_val {
-        //     if self.hold_time > 0 {
-        //         self.hold_time -= 1;
-        //         return Some(i);
-        //     }
+        if self.i > Self::HEAD_TIME {
+            self.state = State::Transmitting;
+        }
 
-        //     self.last_val.take();
-        // }
-
-        // let out = match self.encode.next() {
-        //     Some(i) => i,
-        //     _ => return None,
-        // };
-        // self.last_val = Some(out);
-        // self.hold_time = Self::HOLD_TIME;
-        // Some(out)
+        match &mut self.state {
+            State::HeadPadding(tone) => tone.next(),
+            State::Transmitting => self.encode.next(),
+        }
     }
 }
