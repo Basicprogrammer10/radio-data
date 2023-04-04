@@ -5,6 +5,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 mod coding;
 mod context;
 mod tone;
+mod misc;
 
 use coding::dtmf::{DtmfDecoder, DtmfEncoder};
 use rodio::{source::SineWave, OutputStream, Sink, Source};
@@ -36,10 +37,19 @@ fn main() {
         .expect("error while querying configs");
     let input_channels = input_supported_config.channels() as usize;
 
-    println!("[*] Hooked into `{}`", device.name().unwrap());
+    println!(
+        "[*] Input  hooked into `{}` ({})",
+        input_device.name().unwrap(),
+        input_supported_config.sample_rate().0
+    );
+    println!(
+        "[*] Output hooked into `{}` ({})",
+        device.name().unwrap(),
+        supported_config.sample_rate().0
+    );
 
     let data = dtmf::bin_to_dtmf(DATA);
-    println!("{:?}", data.iter().map(|x| *x as char).collect::<Vec<_>>());
+    // println!("{:?}", data.iter().map(|x| *x as char).collect::<Vec<_>>());
     let mut dtmf = DtmfEncoder::new(&data);
 
     let stream = device
@@ -49,7 +59,6 @@ fn main() {
                 let mut last = 0.0;
                 for (i, x) in data.iter_mut().enumerate() {
                     if i % channels == 0 {
-                        // last = ctx.next().unwrap_or(0.);
                         last = dtmf.next().unwrap_or(0.0);
                     }
 
@@ -76,8 +85,6 @@ fn main() {
             println!("GOT CODE");
             let (_stream, stream_handle) = OutputStream::try_default().unwrap();
             let sink = Sink::try_new(&stream_handle).unwrap();
-
-            // Add a dummy source of the sake of the example.
             let source = SineWave::new(440.0).take_duration(Duration::from_secs_f32(4.));
             sink.append(source);
             sink.play();
@@ -98,13 +105,12 @@ fn main() {
         .build_input_stream(
             &input_supported_config.into(),
             move |data: &[f32], _info: &cpal::InputCallbackInfo| {
-                let mut work = Vec::new();
-                for (i, x) in data.iter().enumerate() {
-                    if i % input_channels == 0 {
-                        // decode.add(*x);
-                        work.push(*x);
-                    }
-                }
+                let work = data
+                    .iter()
+                    .enumerate()
+                    .filter(|x| x.0 % input_channels == 0)
+                    .map(|x| *x.1)
+                    .collect::<Vec<_>>();
 
                 decode.process(&work);
             },
@@ -116,4 +122,10 @@ fn main() {
     stream.play().unwrap();
     input_stream.play().unwrap();
     std::thread::park();
+}
+
+pub trait Module {
+    fn name(&self) -> &'static str;
+    fn input(&self, _input: &[f32]) {}
+    fn output(&self, _output: &mut [f32]) {}
 }
