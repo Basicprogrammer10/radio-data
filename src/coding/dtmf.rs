@@ -4,10 +4,7 @@ use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
 use crate::{tone::Tone, SAMPLE_RATE};
 
-/*
-- https://github.com/NHollmann/DTMF-Tool/blob/master/src/utils/dtmf.ts
-- https://en.wikipedia.org/wiki/Goertzel_algorithm
-*/
+// https://en.wikipedia.org/wiki/Goertzel_algorithm
 
 const COL: [f32; 4] = [1209.0, 1336.0, 1477.0, 1633.0];
 const ROW: [f32; 4] = [697.0, 770.0, 852.0, 941.0];

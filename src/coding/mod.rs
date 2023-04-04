@@ -1,6 +1,4 @@
-pub mod decode;
-pub mod encode;
-pub mod dtmf_decode;
+pub mod dataset;
+pub mod dtmf;
 
-pub use decode::BinDecoder;
-pub use encode::BinEncoder;
+pub use dataset::{BinDecoder, BinEncoder};

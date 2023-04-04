@@ -8,10 +8,6 @@ edition = "2021"
 [dependencies]
 bitvec = "1.0.1"
 cpal = "0.15.2"
-# crossbeam = "0.8.2"
-# hound = "3.5.0"
-pico-args = "0.5.0"
 rand = "0.8.5"
 rodio = "0.17.1"
-# rustfft = "6.1.0"
-# ureq = "2.6.2"
+

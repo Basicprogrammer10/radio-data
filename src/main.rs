@@ -6,10 +6,10 @@ mod coding;
 mod context;
 mod tone;
 
-use coding::dtmf_decode::{DtmfDecoder, DtmfEncoder};
-use rodio::{OutputStream, Sink, source::SineWave, Source};
+use coding::dtmf::{DtmfDecoder, DtmfEncoder};
+use rodio::{source::SineWave, OutputStream, Sink, Source};
 
-use crate::coding::dtmf_decode;
+use crate::coding::dtmf;
 
 const DATA: &[u8] = b"I like fried rice!sp";
 const SAMPLE_RATE: u32 = 44100;
@@ -38,7 +38,7 @@ fn main() {
 
     println!("[*] Hooked into `{}`", device.name().unwrap());
 
-    let data = dtmf_decode::bin_to_dtmf(DATA);
+    let data = dtmf::bin_to_dtmf(DATA);
     println!("{:?}", data.iter().map(|x| *x as char).collect::<Vec<_>>());
     let mut dtmf = DtmfEncoder::new(&data);
 
@@ -78,8 +78,7 @@ fn main() {
             let sink = Sink::try_new(&stream_handle).unwrap();
 
             // Add a dummy source of the sake of the example.
-            let source = SineWave::new(440.0)
-                .take_duration(Duration::from_secs_f32(4.));
+            let source = SineWave::new(440.0).take_duration(Duration::from_secs_f32(4.));
             sink.append(source);
             sink.play();
             sink.sleep_until_end();
@@ -88,7 +87,7 @@ fn main() {
 
         let size = out.len();
         if size > 2 && out[size - 2] == b'1' && out[size - 1] == b'#' {
-            let text = dtmf_decode::dtmf_to_bin(&out);
+            let text = dtmf::dtmf_to_bin(&out);
             let text = text.iter().map(|x| *x as char).collect::<String>();
             println!("{:?}", &text[0..text.len() - 2]);
             out.clear();
@@ -114,7 +113,7 @@ fn main() {
         )
         .unwrap();
 
-    // stream.play().unwrap();
+    stream.play().unwrap();
     input_stream.play().unwrap();
     std::thread::park();
 }
