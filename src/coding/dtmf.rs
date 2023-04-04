@@ -2,7 +2,7 @@ use std::{f32::consts::PI, time::Instant};
 
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
-use crate::{tone::Tone, SAMPLE_RATE};
+use crate::{misc::SampleRate, tone::Tone};
 
 // https://en.wikipedia.org/wiki/Goertzel_algorithm
 
@@ -14,7 +14,10 @@ const DATA_LENGTH: usize = 5;
 const VALUE_INVALIDATE: usize = 1000;
 
 pub struct DtmfDecoder {
-    sample_rate: u32,
+    // == Config ==
+    sample_rate: SampleRate,
+
+    // == Internal ==
     data: Vec<u8>,
     last: Option<u8>,
     last_timestamp: Instant,
@@ -22,22 +25,27 @@ pub struct DtmfDecoder {
 }
 
 pub struct DtmfEncoder {
-    sample_rate: u32,
+    // == Config ==
+    sample_rate: SampleRate,
+    time: u32,
+    sleep: u32,
+
+    // == Internal ==
     low: Tone,
     high: Tone,
     data: Vec<u8>,
-    i: usize,
     cooldown: usize,
+    i: usize,
 }
 
 impl DtmfEncoder {
-    const TIME: u32 = SAMPLE_RATE / 2;
-    const SLEEP: u32 = SAMPLE_RATE / 4;
-
     // 0-9, a, b, d, c, *, #
-    pub fn new(data: &[u8], sample_rate: u32) -> Self {
+    pub fn new(data: &[u8], sample_rate: SampleRate) -> Self {
         Self {
+            time: sample_rate.output / 2,
+            sleep: sample_rate.output / 4,
             sample_rate,
+
             low: Tone::new(0.0, sample_rate),
             high: Tone::new(0.0, sample_rate),
             data: data.to_vec(),
@@ -56,14 +64,14 @@ impl Iterator for DtmfEncoder {
             return Some(0.0);
         }
 
-        if self.i % Self::TIME as usize == 0 {
-            let val = self.data.get(self.i / Self::TIME as usize)?;
+        if self.i % self.time as usize == 0 {
+            let val = self.data.get(self.i / self.time as usize)?;
             let val = VAL.iter().enumerate().find(|x| x.1 == val).unwrap().0 as u8;
             let col = val % COL.len() as u8;
             let row = val / COL.len() as u8;
             self.low = Tone::new(COL[col as usize], self.sample_rate);
             self.high = Tone::new(ROW[row as usize], self.sample_rate);
-            self.cooldown = Self::SLEEP as usize;
+            self.cooldown = self.sleep as usize;
         }
 
         self.i = self.i.wrapping_add(1);
@@ -73,7 +81,10 @@ impl Iterator for DtmfEncoder {
 }
 
 impl DtmfDecoder {
-    pub fn new(sample_rate: u32, callback: impl FnMut(char) + Send + Sync + 'static) -> Self {
+    pub fn new(
+        sample_rate: SampleRate,
+        callback: impl FnMut(char) + Send + Sync + 'static,
+    ) -> Self {
         Self {
             sample_rate,
             data: Vec::with_capacity(DATA_LENGTH),
@@ -87,7 +98,7 @@ impl DtmfDecoder {
         let freqs = ROW
             .iter()
             .chain(COL.iter())
-            .map(|x| goertzel_mag(*x, data))
+            .map(|x| goertzel_mag(*x, data, self.sample_rate.input))
             .collect::<Vec<_>>();
         let x = match frequencies_to_dtmf(&freqs) {
             Some(i) => i,
@@ -113,8 +124,8 @@ impl DtmfDecoder {
     }
 }
 
-pub fn goertzel_mag(freq: f32, samples: &[f32]) -> f32 {
-    let k = (0.5 + (samples.len() as f32 * freq) / SAMPLE_RATE as f32).floor();
+pub fn goertzel_mag(freq: f32, samples: &[f32], sample_rate: u32) -> f32 {
+    let k = (0.5 + (samples.len() as f32 * freq) / sample_rate as f32).floor();
     let omega = (2.0 * PI * k) / samples.len() as f32;
     let sin = omega.sin();
     let cos = omega.cos();

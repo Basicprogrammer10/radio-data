@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use crate::misc::SampleRate;
+
 pub struct Tone {
     i: f32,
     tone: f32,
@@ -8,10 +10,10 @@ pub struct Tone {
 }
 
 impl Tone {
-    pub fn new(tone: f32, sample_rate: u32) -> Self {
+    pub fn new(tone: f32, sample_rate: SampleRate) -> Self {
         Self {
             i: 0_f32,
-            sample_rate: sample_rate as f32,
+            sample_rate: sample_rate.output as f32,
             tone,
             duration: None,
         }

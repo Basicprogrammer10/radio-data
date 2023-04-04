@@ -1,6 +1,8 @@
 use clap::ArgMatches;
 use cpal::SupportedStreamConfig;
 
+use crate::misc::SampleRate;
+
 pub mod range_test;
 
 pub trait Module {
@@ -16,7 +18,7 @@ pub struct InitContext {
 }
 
 impl InitContext {
-    pub fn output_sr(&self) -> u32 {
-        self.output.sample_rate().0
+    pub fn sample_rate(&self) -> SampleRate {
+        SampleRate::new(self.input.sample_rate().0, self.output.sample_rate().0)
     }
 }

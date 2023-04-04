@@ -1,8 +1,30 @@
+#[derive(Debug, Clone, Copy)]
+pub struct SampleRate {
+    pub input: u32,
+    pub output: u32,
+}
+
 pub struct ValueRepeat<I: Iterator> {
     iter: I,
     val: Option<<I as Iterator>::Item>,
     reps: usize,
     i: usize,
+}
+
+impl SampleRate {
+    pub fn new(input: u32, output: u32) -> Self {
+        Self { input, output }
+    }
+
+    pub fn from_hz(hz: u32) -> Self {
+        Self::new(hz, hz)
+    }
+}
+
+impl From<u32> for SampleRate {
+    fn from(hz: u32) -> Self {
+        Self::from_hz(hz)
+    }
 }
 
 impl<I: Iterator> ValueRepeat<I> {

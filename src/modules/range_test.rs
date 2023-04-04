@@ -4,7 +4,7 @@
 //! If it receives the DTMF tones defined in the const below,
 //! it will play back a tone.
 
-const CODE: &[u8] = b"ABCD";
+const CODE: &[u8] = b"DDDD";
 
 use std::sync::Arc;
 
@@ -22,7 +22,7 @@ pub struct RangeTest {
 
 impl RangeTest {
     pub fn new(ctx: InitContext) -> Arc<Self> {
-        let sr = ctx.output_sr();
+        let sr = ctx.sample_rate();
         let out = Arc::new(Self {
             ctx,
             dtmf: Mutex::new(None),
@@ -43,8 +43,8 @@ impl RangeTest {
 
         if history.len() >= CODE.len() && &history[history.len() - CODE.len()..] == CODE {
             println!("GOT CODE");
-            let sr = self.ctx.output_sr();
-            *self.tone.lock() = Tone::new(440., sr).duration(sr * 3);
+            let sr = self.ctx.sample_rate();
+            *self.tone.lock() = Tone::new(440., sr).duration(sr.output * 3);
             history.clear();
         }
     }

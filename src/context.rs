@@ -1,4 +1,4 @@
-use crate::{coding::BinEncoder, tone::Tone};
+use crate::{coding::BinEncoder, misc::SampleRate, tone::Tone};
 
 enum State {
     HeadPadding(Tone),
@@ -8,12 +8,12 @@ enum State {
 pub struct Context {
     pub encode: BinEncoder,
     state: State,
-    sample_rate: u32,
+    sample_rate: SampleRate,
     i: usize,
 }
 
 impl Context {
-    pub fn new(encode: BinEncoder, sample_rate: u32) -> Self {
+    pub fn new(encode: BinEncoder, sample_rate: SampleRate) -> Self {
         Self {
             encode,
             sample_rate,
@@ -29,7 +29,7 @@ impl Iterator for Context {
     fn next(&mut self) -> Option<Self::Item> {
         self.i = self.i.wrapping_add(1);
 
-        if self.i > self.sample_rate as usize {
+        if self.i > self.sample_rate.output as usize {
             self.state = State::Transmitting;
         }
 

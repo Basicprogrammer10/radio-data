@@ -7,9 +7,6 @@ mod misc;
 mod modules;
 mod tone;
 
-#[deprecated]
-const SAMPLE_RATE: u32 = 44100;
-
 fn main() {
     // Setup audio devices
     let host = cpal::default_host();
@@ -30,8 +27,16 @@ fn main() {
     let module = args::parse_args(supported_config.clone(), input_supported_config.clone());
     println!("[*] Running module `{}`", module.name());
 
-    println!("[*] Input  hooked into `{}`", input_device.name().unwrap());
-    println!("[*] Output hooked into `{}`", device.name().unwrap());
+    println!(
+        "[*] Input  hooked into `{}` ({})",
+        input_device.name().unwrap(),
+        supported_config.sample_rate().0
+    );
+    println!(
+        "[*] Output hooked into `{}` ({})",
+        device.name().unwrap(),
+        input_supported_config.sample_rate().0
+    );
 
     let module_ref = module.clone();
     let output_stream = device
@@ -43,7 +48,7 @@ fn main() {
         )
         .unwrap();
 
-    let input_stream = device
+    let input_stream = input_device
         .build_input_stream(
             &input_supported_config.into(),
             move |data: &[f32], _info: &cpal::InputCallbackInfo| module.input(data),
