@@ -4,19 +4,22 @@
 //! If it receives the DTMF tones defined in the const below,
 //! it will play back a tone.
 
-const CODE: &[u8] = b"DDDD";
+const CODE: &[u8] = b"ABCD";
 
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 
 use super::{InitContext, Module};
-use crate::{coding::dtmf::DtmfDecoder, tone::Tone};
+use crate::{
+    audio::{sequence::Sequence, tone::Tone},
+    coding::dtmf::DtmfDecoder,
+};
 
 pub struct RangeTest {
     ctx: InitContext,
     dtmf: Mutex<Option<DtmfDecoder>>,
-    tone: Mutex<Tone>,
+    tone: Mutex<Sequence>,
     history: Mutex<Vec<u8>>,
 }
 
@@ -26,7 +29,7 @@ impl RangeTest {
         let out = Arc::new(Self {
             ctx,
             dtmf: Mutex::new(None),
-            tone: Mutex::new(Tone::new(440., sr).duration(0)),
+            tone: Mutex::new(Sequence::new(sr)),
             history: Mutex::new(Vec::new()),
         });
 
@@ -44,7 +47,7 @@ impl RangeTest {
         if history.len() >= CODE.len() && &history[history.len() - CODE.len()..] == CODE {
             println!("GOT CODE");
             let sr = self.ctx.sample_rate();
-            *self.tone.lock() = Tone::new(440., sr).duration(sr.output * 3);
+            *self.tone.lock() = Sequence::from_seq("440;5", sr);
             history.clear();
         }
     }

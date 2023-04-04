@@ -2,7 +2,7 @@ use std::{f32::consts::PI, time::Instant};
 
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
-use crate::{misc::SampleRate, tone::Tone};
+use crate::{misc::SampleRate, audio::tone::Tone};
 
 // https://en.wikipedia.org/wiki/Goertzel_algorithm
 
