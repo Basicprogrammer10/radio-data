@@ -6,6 +6,7 @@ mod coding;
 mod context;
 mod tone;
 mod misc;
+mod modules;
 
 use coding::dtmf::{DtmfDecoder, DtmfEncoder};
 use rodio::{source::SineWave, OutputStream, Sink, Source};
@@ -124,8 +125,3 @@ fn main() {
     std::thread::park();
 }
 
-pub trait Module {
-    fn name(&self) -> &'static str;
-    fn input(&self, _input: &[f32]) {}
-    fn output(&self, _output: &mut [f32]) {}
-}

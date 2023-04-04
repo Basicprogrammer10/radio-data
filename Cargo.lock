@@ -673,6 +673,7 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "cpal",
+ "parking_lot",
  "rand",
  "rodio",
 ]
