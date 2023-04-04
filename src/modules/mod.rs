@@ -1,15 +1,22 @@
-use std::{sync::Arc, rc::Rc};
-
+use clap::ArgMatches;
 use cpal::SupportedStreamConfig;
 
-mod range_test;
-
-pub fn modules() -> [Box<Arc<dyn Module + Send + Sync + 'static>>; 1] {
-    [Box::new(range_test::RangeTest::new())]
-}
+pub mod range_test;
 
 pub trait Module {
     fn name(&self) -> &'static str;
-    fn input(&self, _input: &[f32], _channels: Arc<SupportedStreamConfig>) {}
-    fn output(&self, _output: &mut [f32], _channels: Arc<SupportedStreamConfig>) {}
+    fn input(&self, _input: &[f32]) {}
+    fn output(&self, _output: &mut [f32]) {}
+}
+
+pub struct InitContext {
+    pub args: ArgMatches,
+    pub input: SupportedStreamConfig,
+    pub output: SupportedStreamConfig,
+}
+
+impl InitContext {
+    pub fn output_sr(&self) -> u32{
+        self.output.sample_rate().0
+    } 
 }

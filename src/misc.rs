@@ -32,7 +32,7 @@ where
         }
 
         self.i -= 1;
-        return self.val.clone();
+        self.val.clone()
     }
 }
 

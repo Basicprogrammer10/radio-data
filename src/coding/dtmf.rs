@@ -14,6 +14,7 @@ const DATA_LENGTH: usize = 5;
 const VALUE_INVALIDATE: usize = 1000;
 
 pub struct DtmfDecoder {
+    sample_rate: u32,
     data: Vec<u8>,
     last: Option<u8>,
     last_timestamp: Instant,
@@ -21,6 +22,7 @@ pub struct DtmfDecoder {
 }
 
 pub struct DtmfEncoder {
+    sample_rate: u32,
     low: Tone,
     high: Tone,
     data: Vec<u8>,
@@ -33,10 +35,11 @@ impl DtmfEncoder {
     const SLEEP: u32 = SAMPLE_RATE / 4;
 
     // 0-9, a, b, d, c, *, #
-    pub fn new(data: &[u8]) -> Self {
+    pub fn new(data: &[u8], sample_rate: u32) -> Self {
         Self {
-            low: Tone::new(0.0),
-            high: Tone::new(0.0),
+            sample_rate,
+            low: Tone::new(0.0, sample_rate),
+            high: Tone::new(0.0, sample_rate),
             data: data.to_vec(),
             i: 0,
             cooldown: 0,
@@ -58,8 +61,8 @@ impl Iterator for DtmfEncoder {
             let val = VAL.iter().enumerate().find(|x| x.1 == val).unwrap().0 as u8;
             let col = val % COL.len() as u8;
             let row = val / COL.len() as u8;
-            self.low = Tone::new(COL[col as usize]);
-            self.high = Tone::new(ROW[row as usize]);
+            self.low = Tone::new(COL[col as usize], self.sample_rate);
+            self.high = Tone::new(ROW[row as usize], self.sample_rate);
             self.cooldown = Self::SLEEP as usize;
         }
 
@@ -70,8 +73,9 @@ impl Iterator for DtmfEncoder {
 }
 
 impl DtmfDecoder {
-    pub fn new(callback: impl FnMut(char) + Send + Sync + 'static) -> Self {
+    pub fn new(sample_rate: u32, callback: impl FnMut(char) + Send + Sync + 'static) -> Self {
         Self {
+            sample_rate,
             data: Vec::with_capacity(DATA_LENGTH),
             callback: Box::new(callback),
             last_timestamp: Instant::now(),
