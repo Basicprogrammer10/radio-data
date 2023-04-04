@@ -1,17 +1,17 @@
-use std::{fs::File, io::BufReader, sync::Arc};
+use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rodio::OutputStream;
 
 mod coding;
 mod context;
 mod tone;
 
 use coding::dtmf_decode::{DtmfDecoder, DtmfEncoder};
+use rodio::{OutputStream, Sink, source::SineWave, Source};
 
 use crate::coding::dtmf_decode;
 
-const DATA: &[u8] = b"Save the turtles!sp";
+const DATA: &[u8] = b"I like fried rice!sp";
 const SAMPLE_RATE: u32 = 44100;
 
 fn main() {
@@ -56,26 +56,42 @@ fn main() {
                     *x = last;
                 }
             },
-            move |err| eprintln!("[-] Error: {}", err),
+            move |err| eprintln!("[-] Error: {err}"),
             None,
         )
         .unwrap();
 
     let mut out = Vec::new();
-    let mut skip = true;
+    let mut skip = false;
     let mut decode = DtmfDecoder::new(move |chr| {
         if skip {
             skip = false;
-            println!("[*] Skip {}", chr);
+            println!("[*] Skip {chr}");
             return;
         }
-        println!("[*] Receded Code: {}", chr);
+        println!("[*] Received Code: {chr}");
         out.push(chr as u8);
+
+        if out.len() >= 4 && &out[out.len() - 4..] == b"1234" {
+            println!("GOT CODE");
+            let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+            let sink = Sink::try_new(&stream_handle).unwrap();
+
+            // Add a dummy source of the sake of the example.
+            let source = SineWave::new(440.0)
+                .take_duration(Duration::from_secs_f32(4.));
+            sink.append(source);
+            sink.play();
+            sink.sleep_until_end();
+            out.clear();
+        }
 
         let size = out.len();
         if size > 2 && out[size - 2] == b'1' && out[size - 1] == b'#' {
-            let out = dtmf_decode::dtmf_to_bin(&out);
-            println!("{:?}", out.iter().map(|x| *x as char).collect::<String>());
+            let text = dtmf_decode::dtmf_to_bin(&out);
+            let text = text.iter().map(|x| *x as char).collect::<String>();
+            println!("{:?}", &text[0..text.len() - 2]);
+            out.clear();
         }
     });
 
@@ -93,12 +109,12 @@ fn main() {
 
                 decode.process(&work);
             },
-            |err| eprintln!("[-] Error: {:?}", err),
+            |err| eprintln!("[-] Error: {err:?}"),
             None,
         )
         .unwrap();
 
-    stream.play().unwrap();
+    // stream.play().unwrap();
     input_stream.play().unwrap();
     std::thread::park();
 }

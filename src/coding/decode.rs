@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use bitvec::{order::Lsb0, vec::BitVec};
 
 pub struct BinDecoder {
@@ -43,7 +41,7 @@ impl BinDecoder {
                 .clone()
                 .into_vec()
                 .iter()
-                .map(|x| format!("{:b}", x))
+                .map(|x| format!("{x:b}"))
                 .collect::<String>()
         );
     }

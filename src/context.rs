@@ -12,7 +12,7 @@ pub struct Context {
 }
 
 impl Context {
-    const HEAD_TIME: usize = SAMPLE_RATE as usize * 1;
+    const HEAD_TIME: usize = SAMPLE_RATE as usize;
 
     pub fn new(encode: BinEncoder) -> Self {
         Self {
