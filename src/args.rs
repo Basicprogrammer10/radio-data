@@ -18,12 +18,14 @@ pub fn parse_args(
             .about("Lets you test the range if your radio system.")])
         .get_matches();
 
+    let ic = |x| InitContext {
+        args: x,
+        input,
+        output,
+    };
+
     match m.subcommand() {
-        Some(("range", m)) => Box::new(range_test::RangeTest::new(InitContext {
-            args: m.to_owned(),
-            input,
-            output,
-        })),
+        Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m.to_owned()))),
         _ => panic!("Invalid Subcommand"),
     }
 }

@@ -16,7 +16,7 @@ pub struct InitContext {
 }
 
 impl InitContext {
-    pub fn output_sr(&self) -> u32{
+    pub fn output_sr(&self) -> u32 {
         self.output.sample_rate().0
-    } 
+    }
 }

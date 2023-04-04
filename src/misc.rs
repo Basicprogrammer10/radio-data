@@ -43,7 +43,10 @@ where
     fn repeat(self, rep: usize) -> ValueRepeat<I>;
 }
 
-impl<I> IntoValueRepeat<I> for I where I: Iterator {
+impl<I> IntoValueRepeat<I> for I
+where
+    I: Iterator,
+{
     fn repeat(self, reps: usize) -> ValueRepeat<I> {
         ValueRepeat::new(reps, self)
     }
@@ -56,7 +59,7 @@ mod test {
     #[test]
     fn test_value_repeat_iter() {
         let mut iter = [1, 2, 3].iter().repeat(3);
-        
+
         for i in [1, 1, 1, 2, 2, 2, 3, 3, 3] {
             assert_eq!(i, *iter.next().unwrap());
         }
