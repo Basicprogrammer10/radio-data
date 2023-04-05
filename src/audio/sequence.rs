@@ -49,12 +49,11 @@ impl Iterator for Sequence {
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.tones.get_mut(self.index)?.next() {
-            i @ Some(_) => return i,
-            None => {
-                self.index += 1;
-                return self.next();
-            }
+        if let Some(i) = self.tones.get_mut(self.index)?.next() {
+            return Some(i);
         }
+
+        self.index += 1;
+        self.next()
     }
 }

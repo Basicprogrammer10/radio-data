@@ -1,0 +1,56 @@
+use std::sync::Arc;
+
+use parking_lot::Mutex;
+
+use crate::{coding::dtmf::DtmfDecoder, consts::DTMF_CHUNK};
+
+use super::{InitContext, Module};
+
+pub struct DtmfReceive {
+    ctx: InitContext,
+    decode: Mutex<Option<DtmfDecoder>>,
+    work: Mutex<Vec<f32>>,
+}
+
+impl DtmfReceive {
+    pub fn new(ctx: InitContext) -> Arc<Self> {
+        let out = Arc::new(Self {
+            decode: Mutex::new(None),
+            work: Mutex::new(Vec::new()),
+            ctx,
+        });
+
+        let this = out.clone();
+        *out.decode.lock() = Some(DtmfDecoder::new(out.ctx.sample_rate(), move |x| {
+            this.callback(x)
+        }));
+
+        out
+    }
+
+    fn callback(&self, chr: char) {
+        println!("[*] Got code: {}", chr);
+    }
+}
+
+impl Module for DtmfReceive {
+    fn name(&self) -> &'static str {
+        "DtmfReceive"
+    }
+
+    fn input(&self, input: &[f32]) {
+        let mut work = self.work.lock();
+        work.extend(
+            input
+                .iter()
+                .enumerate()
+                .filter(|x| x.0 % self.ctx.input.channels() as usize == 0)
+                .map(|x| *x.1),
+        );
+
+        for _ in 0..work.len() / DTMF_CHUNK {
+            let chunk = work.drain(..DTMF_CHUNK).collect::<Vec<_>>();
+            self.decode.lock().as_mut().unwrap().process(&chunk);
+        }
+    }
+}

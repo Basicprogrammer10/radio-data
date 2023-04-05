@@ -5,14 +5,13 @@
 //! it will play back a tone.
 
 const CODE: &[u8] = b"ABCD";
-const DTMF_CHUNK: usize = 512;
 
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 
 use super::{InitContext, Module};
-use crate::{audio::sequence::Sequence, coding::dtmf::DtmfDecoder};
+use crate::{audio::sequence::Sequence, coding::dtmf::DtmfDecoder, consts::DTMF_CHUNK};
 
 pub struct RangeTest {
     ctx: InitContext,

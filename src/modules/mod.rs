@@ -3,6 +3,8 @@ use cpal::SupportedStreamConfig;
 
 use crate::misc::SampleRate;
 
+pub mod dtmf_receive;
+pub mod dtmf_send;
 pub mod range_test;
 
 pub trait Module {

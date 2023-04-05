@@ -6,6 +6,7 @@ mod context;
 mod misc;
 mod modules;
 mod audio;
+mod consts;
 
 fn main() {
     // Setup audio devices

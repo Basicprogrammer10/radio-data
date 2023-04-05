@@ -2,15 +2,15 @@ use std::{f32::consts::PI, time::Instant};
 
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
-use crate::{misc::SampleRate, audio::tone::Tone};
+use crate::{audio::tone::Tone, misc::SampleRate};
 
 // https://en.wikipedia.org/wiki/Goertzel_algorithm
 
 const COL: [f32; 4] = [1209.0, 1336.0, 1477.0, 1633.0];
-const ROW: [f32; 4] = [ 697.0,  770.0,  852.0,  941.0];
+const ROW: [f32; 4] = [697.0, 770.0, 852.0, 941.0];
 const VAL: [u8; 16] = *b"123A456B789C*0#D";
-const MAGNITUDE_EPSILON: f32  = 0.05;
-const DATA_LENGTH: usize      = 10;
+const MAGNITUDE_EPSILON: f32 = 0.05;
+const DATA_LENGTH: usize = 10;
 const VALUE_INVALIDATE: usize = 1000;
 
 pub struct DtmfDecoder {
@@ -49,8 +49,8 @@ impl DtmfEncoder {
             low: Tone::new(0.0, sample_rate),
             high: Tone::new(0.0, sample_rate),
             data: data.to_vec(),
-            i: 0,
             cooldown: 0,
+            i: 0,
         }
     }
 }
@@ -75,7 +75,7 @@ impl Iterator for DtmfEncoder {
         }
 
         self.i = self.i.wrapping_add(1);
-        let out = (self.low.next()? * 0.5) + (self.high.next()? * 0.5);
+        let out = (self.low.next().unwrap() * 0.5) + (self.high.next().unwrap() * 0.5);
         Some(out)
     }
 }
@@ -152,8 +152,8 @@ pub fn frequencies_to_dtmf(freqs: &[f32]) -> Option<u8> {
     let mut row = freqs[0..4].iter().enumerate().collect::<Vec<_>>();
     let mut col = freqs[4..8].iter().enumerate().collect::<Vec<_>>();
 
-    row.sort_by(|a, b| a.1.total_cmp(&b.1));
-    col.sort_by(|a, b| a.1.total_cmp(&b.1));
+    row.sort_by(|a, b| a.1.total_cmp(b.1));
+    col.sort_by(|a, b| a.1.total_cmp(b.1));
 
     let row_max = row.last().unwrap();
     let col_max = col.last().unwrap();
