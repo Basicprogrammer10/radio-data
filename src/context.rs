@@ -1,4 +1,4 @@
-use crate::{coding::BinEncoder, misc::SampleRate, tone::Tone};
+use crate::{coding::BinEncoder, misc::SampleRate, audio::tone::Tone};
 
 enum State {
     HeadPadding(Tone),

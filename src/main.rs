@@ -5,7 +5,7 @@ mod coding;
 mod context;
 mod misc;
 mod modules;
-mod tone;
+mod audio;
 
 fn main() {
     // Setup audio devices
