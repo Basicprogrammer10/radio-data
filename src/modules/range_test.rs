@@ -5,6 +5,7 @@
 //! it will play back a tone.
 
 const CODE: &[u8] = b"DDDD";
+const DTMF_CHUNK: usize = 512;
 
 use std::sync::Arc;
 
@@ -17,6 +18,7 @@ pub struct RangeTest {
     ctx: InitContext,
     dtmf: Mutex<Option<DtmfDecoder>>,
     tone: Mutex<Tone>,
+    work: Mutex<Vec<f32>>,
     history: Mutex<Vec<u8>>,
 }
 
@@ -27,6 +29,7 @@ impl RangeTest {
             ctx,
             dtmf: Mutex::new(None),
             tone: Mutex::new(Tone::new(440., sr).duration(0)),
+            work: Mutex::new(Vec::new()),
             history: Mutex::new(Vec::new()),
         });
 
@@ -44,7 +47,7 @@ impl RangeTest {
         if history.len() >= CODE.len() && &history[history.len() - CODE.len()..] == CODE {
             println!("GOT CODE");
             let sr = self.ctx.sample_rate();
-            *self.tone.lock() = Tone::new(440., sr).duration(sr.output * 3);
+            *self.tone.lock() = Tone::new(440., sr).duration(sr.output * 10);
             history.clear();
         }
     }
@@ -56,14 +59,19 @@ impl Module for RangeTest {
     }
 
     fn input(&self, input: &[f32]) {
-        let work = input
-            .iter()
-            .enumerate()
-            .filter(|x| x.0 % self.ctx.input.channels() as usize == 0)
-            .map(|x| *x.1)
-            .collect::<Vec<_>>();
+        let mut work = self.work.lock();
+        work.extend(
+            input
+                .iter()
+                .enumerate()
+                .filter(|x| x.0 % self.ctx.input.channels() as usize == 0)
+                .map(|x| *x.1),
+        );
 
-        self.dtmf.lock().as_mut().unwrap().process(&work);
+        for _ in 0..work.len() / DTMF_CHUNK {
+            let chunk = work.drain(..DTMF_CHUNK).collect::<Vec<_>>();
+            self.dtmf.lock().as_mut().unwrap().process(&chunk);
+        }
     }
 
     fn output(&self, output: &mut [f32]) {
