@@ -2,7 +2,6 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 mod args;
 mod coding;
-mod context;
 mod misc;
 mod modules;
 mod audio;
@@ -53,7 +52,7 @@ fn main() {
         .build_input_stream(
             &input_supported_config.into(),
             move |data: &[f32], _info: &cpal::InputCallbackInfo| module.input(data),
-            |err| eprintln!("[-] Error: {err:?}"),
+            |err| eprintln!("[-] Error: {err}"),
             None,
         )
         .unwrap();

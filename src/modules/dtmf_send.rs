@@ -29,10 +29,10 @@ impl DtmfSend {
         let sr = ctx.sample_rate();
         let to_send = ctx.args.get_one::<String>("data").unwrap();
         let mut to_send = dtmf::bin_to_dtmf(to_send.as_bytes());
-        to_send.insert(0, 'A' as u8);
-        to_send.insert(1, '#' as u8);
-        to_send.push('#' as u8);
-        to_send.push('D' as u8);
+        to_send.insert(0, b'A');
+        to_send.insert(1, b'#');
+        to_send.push(b'#');
+        to_send.push(b'D');
         
 
         println!(

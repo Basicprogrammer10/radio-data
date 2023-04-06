@@ -27,7 +27,7 @@ impl RangeTest {
         let out = Arc::new(Self {
             ctx,
             dtmf: Mutex::new(None),
-            tone: Mutex::new(Sequence::new(sr)),
+            tone: Mutex::new(Sequence::new()),
             work: Mutex::new(Vec::new()),
             history: Mutex::new(Vec::new()),
         });

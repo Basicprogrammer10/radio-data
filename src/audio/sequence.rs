@@ -3,16 +3,14 @@ use crate::misc::SampleRate;
 use super::tone::Tone;
 
 pub struct Sequence {
-    sample_rate: SampleRate,
     tones: Vec<Tone>,
     index: usize,
 }
 
 impl Sequence {
-    pub fn new(sample_rate: SampleRate) -> Self {
+    pub fn new() -> Self {
         Self {
             tones: Vec::new(),
-            sample_rate,
             index: 0,
         }
     }
@@ -38,7 +36,6 @@ impl Sequence {
         }
 
         Self {
-            sample_rate,
             tones,
             index: 0,
         }
