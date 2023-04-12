@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use crate::{coding::dtmf::DtmfDecoder, consts::DTMF_CHUNK};
+use crate::{
+    coding::dtmf::{self, DtmfDecoder},
+    consts::DTMF_CHUNK,
+};
 
 use super::{InitContext, Module};
 
@@ -10,6 +13,7 @@ pub struct DtmfReceive {
     ctx: InitContext,
     decode: Mutex<Option<DtmfDecoder>>,
     work: Mutex<Vec<f32>>,
+    history: Mutex<Vec<u8>>,
 }
 
 impl DtmfReceive {
@@ -17,6 +21,7 @@ impl DtmfReceive {
         let out = Arc::new(Self {
             decode: Mutex::new(None),
             work: Mutex::new(Vec::new()),
+            history: Mutex::new(Vec::new()),
             ctx,
         });
 
@@ -29,7 +34,21 @@ impl DtmfReceive {
     }
 
     fn callback(&self, chr: char) {
-        println!("[*] Got code: {}", chr);
+        println!("[*] Got code: {chr}");
+        let mut history = self.history.lock();
+        history.push(chr as u8);
+
+        if history.len() > 2 && &history[history.len() - 2..] == b"#D" {
+            println!("[*] Transmission Complete");
+            let start = match history.windows(2).rposition(|x| x == b"A#") {
+                Some(i) => i,
+                None => return,
+            };
+
+            let raw = dtmf::dtmf_to_bin(&history[start + 2..&history.len() - 2]);
+            println!(" \\ {}", raw.iter().map(|x| *x as char).collect::<String>());
+            history.clear();
+        }
     }
 }
 
