@@ -167,17 +167,13 @@ pub fn frequencies_to_dtmf(freqs: &[f32]) -> Option<u8> {
 
 // -> (0 - 16)
 pub fn bin_to_dtmf(data: &[u8]) -> Vec<u8> {
-    let mut bits = BitVec::<u8, Lsb0>::new();
-    for i in data {
-        bits.extend(i.view_bits::<Lsb0>());
-    }
+    let bits = data.view_bits::<Lsb0>();
 
-    let mut out = Vec::new();
-    for i in bits.chunks(4) {
-        let num = (i[0] as u8) << 3 | (i[1] as u8) << 2 | (i[2] as u8) << 1 | (i[3]) as u8;
-        out.push(VAL[num as usize]);
-    }
-    out
+    bits.chunks(4)
+        .map(|x| {
+            VAL[((x[0] as u8) << 3 | (x[1] as u8) << 2 | (x[2] as u8) << 1 | (x[3]) as u8) as usize]
+        })
+        .collect::<Vec<_>>()
 }
 
 pub fn dtmf_to_bin(dtmf: &[u8]) -> Vec<u8> {
