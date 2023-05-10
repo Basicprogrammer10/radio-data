@@ -38,6 +38,7 @@ fn main() {
         input_supported_config.sample_rate().0
     );
 
+    module.init();
     let module_ref = module.clone();
     let output_stream = device
         .build_output_stream(

@@ -10,6 +10,7 @@ pub mod spectrum_analyzer;
 
 pub trait Module {
     fn name(&self) -> &'static str;
+    fn init(&self) {}
     fn input(&self, _input: &[f32]) {}
     fn output(&self, _output: &mut [f32]) {}
 }

@@ -41,10 +41,12 @@ impl SpectrumAnalyzer {
         let points_per_char = data.len() as f32 / console_width as f32;
 
         let mut vals = Vec::new();
+        let mut error = 0.;
         for i in data {
             vals.push(*i);
 
-            if vals.len() as f32 > points_per_char {
+            if vals.len() as f32 + error >= points_per_char {
+                error = vals.len() as f32 + error - points_per_char;
                 let avg = vals.iter().sum::<f32>() / vals.len() as f32;
                 let color = color(avg);
 
@@ -72,6 +74,11 @@ impl SpectrumAnalyzer {
 impl Module for SpectrumAnalyzer {
     fn name(&self) -> &'static str {
         "spectrum_analyzer"
+    }
+
+    fn init(&self) {
+        let resolution = 1. / FFT_SAMPLE_SIZE as f32 * self.ctx.sample_rate().input as f32;
+        println!("[*] Resolution: {} Hz", resolution);
     }
 
     fn input(&self, input: &[f32]) {
