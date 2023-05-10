@@ -35,10 +35,7 @@ impl Sequence {
             );
         }
 
-        Self {
-            tones,
-            index: 0,
-        }
+        Self { tones, index: 0 }
     }
 }
 

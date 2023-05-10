@@ -1,11 +1,11 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 mod args;
+mod audio;
 mod coding;
+mod consts;
 mod misc;
 mod modules;
-mod audio;
-mod consts;
 
 fn main() {
     // Setup audio devices

@@ -33,7 +33,6 @@ impl DtmfSend {
         to_send.insert(1, b'#');
         to_send.push(b'#');
         to_send.push(b'D');
-        
 
         println!(
             "[D] {}",

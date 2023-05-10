@@ -1,2 +1,2 @@
-pub mod tone;
 pub mod sequence;
+pub mod tone;

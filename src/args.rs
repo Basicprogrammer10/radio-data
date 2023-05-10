@@ -3,7 +3,7 @@ use std::sync::Arc;
 use clap::{Arg, Command};
 use cpal::SupportedStreamConfig;
 
-use crate::modules::{dtmf_receive, dtmf_send, range_test, InitContext, Module};
+use crate::modules::{dtmf_receive, dtmf_send, range_test, spectrum_analyzer, InitContext, Module};
 
 pub fn parse_args(
     input: SupportedStreamConfig,
@@ -29,6 +29,9 @@ pub fn parse_args(
             Command::new("dtmf-receive")
                 .alias("dr")
                 .about("Receives DTMF tones from the radio."),
+            Command::new("spectrum")
+                .alias("s")
+                .about("Shows a spectrum analyzer in the terminal"),
         ])
         .get_matches();
 
@@ -42,6 +45,9 @@ pub fn parse_args(
         Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m.to_owned()))),
         Some(("dtmf-send", m)) => Box::new(dtmf_send::DtmfSend::new(ic(m.to_owned()))),
         Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m.to_owned()))),
+        Some(("spectrum", m)) => {
+            Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m.to_owned())))
+        }
         _ => panic!("Invalid Subcommand"),
     }
 }

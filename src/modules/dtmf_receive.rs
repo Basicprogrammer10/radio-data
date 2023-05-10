@@ -42,7 +42,10 @@ impl DtmfReceive {
             println!("[*] Transmission Complete");
             let start = match history.windows(2).rposition(|x| x == b"A#") {
                 Some(i) => i,
-                None => return,
+                None => {
+                    println!("[-] Start code not found");
+                    return;
+                }
             };
 
             let raw = dtmf::dtmf_to_bin(&history[start + 2..&history.len() - 2]);

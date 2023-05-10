@@ -12,4 +12,5 @@ cpal = "0.15.2"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 rodio = "0.17.1"
+rustfft = "6.1.0"
 
