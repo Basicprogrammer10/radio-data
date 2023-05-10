@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 bitvec = "1.0.1"
-clap = "4.2.1"
-cpal = "0.15.2"
+clap = "4.1.13"
+cpal = "0.15.1"
+crossterm = "0.26.1"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 rodio = "0.17.1"
 rustfft = "6.1.0"
-
