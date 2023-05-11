@@ -1,3 +1,8 @@
+//! Spectrum analyzer module that uses the terminal.
+//!
+//! For future reference:
+//! https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html
+
 use std::{
     f32::consts::{E, PI},
     io::{stdout, Write},
@@ -11,9 +16,6 @@ use rustfft::{num_complex::Complex, FftPlanner};
 
 use super::{InitContext, Module};
 
-// todo: allow setting these with command line arguments
-const FFT_SAMPLE_SIZE: usize = 1024 * 2;
-const DISPLAY_RANGE: Range<usize> = 15..14_000;
 const COLOR_SCHEME: &[Color] = &[
     Color::hex(0x000000),
     Color::hex(0x742975),
@@ -25,6 +27,10 @@ const COLOR_SCHEME: &[Color] = &[
 
 pub struct SpectrumAnalyzer {
     ctx: InitContext,
+    fft_size: usize,
+    display_range: Range<usize>,
+
+    // todo: store the FFT here instead of the planner
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
 }
@@ -38,10 +44,19 @@ impl SpectrumAnalyzer {
         )
         .unwrap();
 
+        let fft_size = *ctx.args.get_one("fft-size").unwrap();
+        let display_range = ctx
+            .args
+            .get_one::<Range<usize>>("display-range")
+            .unwrap()
+            .to_owned();
+
         Arc::new(Self {
             ctx,
+            fft_size,
+            display_range,
             planner: Mutex::new(FftPlanner::<f32>::new()),
-            samples: Mutex::new(Vec::with_capacity(FFT_SAMPLE_SIZE)),
+            samples: Mutex::new(Vec::with_capacity(fft_size)),
         })
     }
 
@@ -64,11 +79,7 @@ impl SpectrumAnalyzer {
                 let bar = "█".repeat(if bar_width > 0 { bar_width } else { 1 });
                 queue!(
                     stdout,
-                    style::SetForegroundColor(style::Color::Rgb {
-                        r: color.r,
-                        g: color.g,
-                        b: color.b
-                    }),
+                    style::SetForegroundColor(color.into()),
                     style::Print(bar),
                 )
                 .unwrap();
@@ -88,26 +99,28 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn init(&self) {
-        let resolution = 1. / FFT_SAMPLE_SIZE as f32 * self.ctx.sample_rate().input as f32;
-        println!("[*] Resolution: {} Hz", resolution);
+        let resolution = 1. / self.fft_size as f32 * self.ctx.sample_rate().input as f32;
+        println!("[I] FFT size: {}", self.fft_size);
+        println!("[I] Display range: {:?}", self.display_range);
+        println!("[I] Resolution: {} Hz", resolution);
     }
 
     fn input(&self, input: &[f32]) {
         let mut samples = self.samples.lock();
         samples.extend_from_slice(input);
 
-        while samples.len() >= FFT_SAMPLE_SIZE {
-            let mut buf = Vec::with_capacity(FFT_SAMPLE_SIZE);
-            for i in samples.drain(..FFT_SAMPLE_SIZE) {
+        while samples.len() >= self.fft_size {
+            let mut buf = Vec::with_capacity(self.fft_size);
+            for i in samples.drain(..self.fft_size) {
                 buf.push(Complex::new(i, 0.));
             }
 
-            let fft = self.planner.lock().plan_fft_forward(FFT_SAMPLE_SIZE);
+            let fft = self.planner.lock().plan_fft_forward(self.fft_size);
             fft.process(&mut buf);
 
             let sample_rate = self.ctx.sample_rate().input as usize;
-            let start = DISPLAY_RANGE.start * FFT_SAMPLE_SIZE / sample_rate;
-            let end = DISPLAY_RANGE.end * FFT_SAMPLE_SIZE / sample_rate;
+            let start = self.display_range.start * self.fft_size / sample_rate;
+            let end = self.display_range.end * self.fft_size / sample_rate;
 
             self.print_row(&hann_window(
                 &buf[start.max(0)..=end.min(buf.len() / 2)]
@@ -166,5 +179,15 @@ impl Color {
             (self.g as f32 + (other.g as f32 - self.g as f32) * t) as u8,
             (self.b as f32 + (other.b as f32 - self.b as f32) * t) as u8,
         )
+    }
+}
+
+impl From<Color> for style::Color {
+    fn from(color: Color) -> Self {
+        style::Color::Rgb {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+        }
     }
 }

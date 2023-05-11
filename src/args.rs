@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{num::ParseIntError, ops::Range, sync::Arc};
 
-use clap::{Arg, Command};
+use clap::{value_parser, Arg, Command};
 use cpal::SupportedStreamConfig;
 
 use crate::modules::{dtmf_receive, dtmf_send, range_test, spectrum_analyzer, InitContext, Module};
@@ -31,7 +31,26 @@ pub fn parse_args(
                 .about("Receives DTMF tones from the radio."),
             Command::new("spectrum")
                 .alias("s")
-                .about("Shows a spectrum analyzer in the terminal"),
+                .about("Shows a spectrum analyzer in the terminal")
+                .arg(
+                    Arg::new("fft-size")
+                        .short('f')
+                        .help("The sample size of the FFT. Should be a power of 2.")
+                        .value_parser(value_parser!(usize))
+                        .default_value("2048"),
+                )
+                .arg(
+                    Arg::new("display-range")
+                        .short('d')
+                        .help("The range of frequencies to display. In the format of `low..high`.")
+                        .value_parser(|x: &str| {
+                            let mut x = x.split("..");
+                            let start = x.next().unwrap().parse::<usize>()?;
+                            let end = x.next().unwrap().parse::<usize>()?;
+                            Ok::<Range<usize>, ParseIntError>(start..end)
+                        })
+                        .default_value("15..14000"),
+                ),
         ])
         .get_matches();
 
