@@ -9,7 +9,7 @@ pub struct BinEncoder {
 }
 
 impl BinEncoder {
-    pub fn new(data: &[u8]) -> Self {
+    pub fn _new(data: &[u8]) -> Self {
         let mut out = BitVec::new();
         data.iter().for_each(|x| out.extend(x.view_bits::<Lsb0>()));
 
@@ -20,7 +20,7 @@ impl BinEncoder {
         }
     }
 
-    pub fn add_data(&mut self, data: &[u8]) {
+    pub fn _add_data(&mut self, data: &[u8]) {
         data.iter()
             .for_each(|x| self.data.extend(x.view_bits::<Lsb0>()));
     }
@@ -62,15 +62,15 @@ impl Iterator for BinEncoder {
     }
 }
 
-pub struct BinDecoder {
+pub struct _BinDecoder {
     i: usize,
     start: usize,
     last: Option<f32>,
     pub data: BitVec<u8, Lsb0>,
 }
 
-impl BinDecoder {
-    pub fn new() -> Self {
+impl _BinDecoder {
+    pub fn _new() -> Self {
         Self {
             i: 1,
             start: 0,
@@ -79,7 +79,7 @@ impl BinDecoder {
         }
     }
 
-    pub fn add(&mut self, mut val: f32) {
+    pub fn _add(&mut self, mut val: f32) {
         val += 0.1;
         if self.last.is_none() {
             self.last = Some(val);
@@ -108,7 +108,7 @@ impl BinDecoder {
         );
     }
 
-    pub fn done(self) -> Vec<u8> {
+    pub fn _done(self) -> Vec<u8> {
         self.data.into_vec()
     }
 }

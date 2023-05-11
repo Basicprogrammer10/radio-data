@@ -130,7 +130,7 @@ impl SpectrumAnalyzer {
         while i < freq_labels.len() {
             let val = &freq_labels[i];
             let freq = nice_freq(val.1);
-            i += freq.len() + 3;
+            i += (freq.len() + 3) / bar_width.max(1);
 
             if val.0 + freq.len() >= console_size.0 as usize {
                 break;

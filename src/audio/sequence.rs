@@ -15,7 +15,7 @@ impl Sequence {
         }
     }
 
-    pub fn chain(mut self, tone: Tone) -> Self {
+    pub fn _chain(mut self, tone: Tone) -> Self {
         self.tones.push(tone);
         self
     }
