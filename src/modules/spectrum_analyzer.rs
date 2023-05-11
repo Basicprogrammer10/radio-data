@@ -71,19 +71,31 @@ impl SpectrumAnalyzer {
         }
 
         let mut stdout = stdout();
-        let console_width = terminal::size().unwrap().0;
-        let bar_width = console_width as usize / data.len();
-        let points_per_char = data.len() as f32 / console_width as f32;
+        let console_size = terminal::size().unwrap();
+        let bar_width = console_size.0 as usize / data.len();
+        let points_per_char = data.len() as f32 / console_size.0 as f32;
+
+        queue!(
+            stdout,
+            cursor::MoveTo(0, 1),
+            terminal::Clear(terminal::ClearType::CurrentLine),
+            style::Print(self.top_line(console_size)),
+            cursor::MoveTo(0, console_size.1),
+        )
+        .unwrap();
 
         let mut vals = Vec::new();
         let mut error = 0.;
+        let mut full_size = 0;
         let prev_data = last_samples.as_ref().unwrap().iter().copied();
         for i in data.into_iter().zip(prev_data) {
             vals.push(i);
 
             if vals.len() as f32 + error >= points_per_char {
                 error = vals.len() as f32 + error - points_per_char;
-                let bar = "▀".repeat(if bar_width > 0 { bar_width } else { 1 });
+                let width = if bar_width > 0 { bar_width } else { 1 };
+                full_size += width;
+                let bar = "▀".repeat(width);
                 queue!(
                     stdout,
                     style::SetForegroundColor(get_color(&vals, |x| x.0).into()),
@@ -96,13 +108,22 @@ impl SpectrumAnalyzer {
             }
         }
 
+        if console_size.0 as usize > full_size {
+            queue!(
+                stdout,
+                style::SetForegroundColor(COLOR_SCHEME[0].into()),
+                style::SetBackgroundColor(COLOR_SCHEME[0].into()),
+                style::Print("▀".repeat(console_size.0 as usize - full_size)),
+            )
+            .unwrap();
+        }
+
         queue!(
             stdout,
             style::ResetColor,
             terminal::ScrollUp(1),
             cursor::MoveToColumn(0),
             style::Print("[Bottom Text]    └ 12Hz"),
-            cursor::MoveToColumn(0),
         )
         .unwrap();
         stdout.flush().unwrap();
@@ -132,6 +153,17 @@ impl SpectrumAnalyzer {
             },
             _ => {}
         }
+    }
+
+    fn top_line(&self, size: (u16, u16)) -> String {
+        let start = format!("[RADIO-DATA SPECTRUM ANALYZER]");
+        let end = format!(
+            "{{FFT size: {}, Display range {:?}}} [ESC: Quit]",
+            self.fft_size, self.display_range
+        );
+
+        let diff = (size.0 as usize).saturating_sub(start.len() + end.len());
+        format!("{}{}{}", start, " ".repeat(diff), end)
     }
 }
 
@@ -215,6 +247,7 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
     color(norm)
 }
 
+#[derive(Copy, Clone)]
 struct Color {
     r: u8,
     g: u8,
