@@ -7,10 +7,16 @@ use std::{
     f32::consts::{E, PI},
     io::{stdout, Write},
     ops::Range,
+    process,
     sync::Arc,
+    time::Duration,
 };
 
-use crossterm::{execute, queue, style, terminal};
+use crossterm::{
+    cursor,
+    event::{self, KeyCode},
+    execute, queue, style, terminal,
+};
 use parking_lot::Mutex;
 use rustfft::{num_complex::Complex, FftPlanner};
 
@@ -33,17 +39,11 @@ pub struct SpectrumAnalyzer {
     // todo: store the FFT here instead of the planner
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
+    last_samples: Mutex<Option<Vec<f32>>>,
 }
 
 impl SpectrumAnalyzer {
     pub fn new(ctx: InitContext) -> Arc<Self> {
-        execute!(
-            stdout(),
-            terminal::EnterAlternateScreen,
-            terminal::Clear(terminal::ClearType::All)
-        )
-        .unwrap();
-
         let fft_size = *ctx.args.get_one("fft-size").unwrap();
         let display_range = ctx
             .args
@@ -57,10 +57,19 @@ impl SpectrumAnalyzer {
             display_range,
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
+            last_samples: Mutex::new(None),
         })
     }
 
-    fn print_row(&self, data: &[f32]) {
+    fn print_row(&self, data: Vec<f32>) {
+        self.handle_key_events();
+
+        let mut last_samples = self.last_samples.lock();
+        if last_samples.is_none() {
+            *last_samples = Some(data);
+            return;
+        }
+
         let mut stdout = stdout();
         let console_width = terminal::size().unwrap().0;
         let bar_width = console_width as usize / data.len();
@@ -68,18 +77,17 @@ impl SpectrumAnalyzer {
 
         let mut vals = Vec::new();
         let mut error = 0.;
-        for i in data {
-            vals.push(*i);
+        let prev_data = last_samples.as_ref().unwrap().iter().copied();
+        for i in data.into_iter().zip(prev_data) {
+            vals.push(i);
 
             if vals.len() as f32 + error >= points_per_char {
                 error = vals.len() as f32 + error - points_per_char;
-                let avg = vals.iter().sum::<f32>() / vals.len() as f32;
-                let color = color(1. - E.powf(-avg));
-
-                let bar = "█".repeat(if bar_width > 0 { bar_width } else { 1 });
+                let bar = "▀".repeat(if bar_width > 0 { bar_width } else { 1 });
                 queue!(
                     stdout,
-                    style::SetForegroundColor(color.into()),
+                    style::SetForegroundColor(get_color(&vals, |x| x.0).into()),
+                    style::SetBackgroundColor(get_color(&vals, |x| x.1).into()),
                     style::Print(bar),
                 )
                 .unwrap();
@@ -88,8 +96,42 @@ impl SpectrumAnalyzer {
             }
         }
 
-        queue!(stdout, style::ResetColor, style::Print("\n")).unwrap();
+        queue!(
+            stdout,
+            style::ResetColor,
+            terminal::ScrollUp(1),
+            cursor::MoveToColumn(0),
+            style::Print("[Bottom Text]    └ 12Hz"),
+            cursor::MoveToColumn(0),
+        )
+        .unwrap();
         stdout.flush().unwrap();
+        *last_samples = None;
+    }
+
+    fn handle_key_events(&self) {
+        let event = event::poll(Duration::ZERO).unwrap();
+        if !event {
+            return;
+        }
+
+        match event::read().unwrap() {
+            event::Event::Key(e) => match e.code {
+                KeyCode::Esc => {
+                    execute!(
+                        stdout(),
+                        terminal::LeaveAlternateScreen,
+                        terminal::EnableLineWrap,
+                        cursor::Show
+                    )
+                    .unwrap();
+                    terminal::disable_raw_mode().unwrap();
+                    process::exit(0);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
     }
 }
 
@@ -102,7 +144,19 @@ impl Module for SpectrumAnalyzer {
         let resolution = 1. / self.fft_size as f32 * self.ctx.sample_rate().input as f32;
         println!("[I] FFT size: {}", self.fft_size);
         println!("[I] Display range: {:?}", self.display_range);
-        println!("[I] Resolution: {} Hz", resolution);
+        println!("[I] Resolution: {resolution} Hz");
+
+        terminal::enable_raw_mode().unwrap();
+
+        let height = terminal::size().unwrap().1;
+        execute!(
+            stdout(),
+            terminal::EnterAlternateScreen,
+            terminal::DisableLineWrap,
+            cursor::Hide,
+            cursor::MoveToRow(height)
+        )
+        .unwrap();
     }
 
     fn input(&self, input: &[f32]) {
@@ -122,7 +176,7 @@ impl Module for SpectrumAnalyzer {
             let start = self.display_range.start * self.fft_size / sample_rate;
             let end = self.display_range.end * self.fft_size / sample_rate;
 
-            self.print_row(&hann_window(
+            self.print_row(hann_window(
                 &buf[start.max(0)..=end.min(buf.len() / 2)]
                     .iter()
                     .map(|x| x.norm())
@@ -152,6 +206,13 @@ fn color(val: f32) -> Color {
         &COLOR_SCHEME[section + 1],
         val * sections as f32 - section as f32,
     )
+}
+
+fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
+    let avg = vals.iter().map(map).sum::<f32>() / vals.len() as f32;
+    let norm = 1. - E.powf(-avg);
+
+    color(norm)
 }
 
 struct Color {
