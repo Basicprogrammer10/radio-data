@@ -39,7 +39,6 @@ pub struct SpectrumAnalyzer {
     fft_size: usize,
     display_range: Range<usize>,
 
-    // todo: store the FFT here instead of the planner
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
     last_samples: Mutex<Option<Vec<f32>>>,
@@ -58,6 +57,7 @@ impl SpectrumAnalyzer {
             ctx,
             fft_size,
             display_range,
+
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
             last_samples: Mutex::new(None),
@@ -98,6 +98,8 @@ impl SpectrumAnalyzer {
 
             if vals.len() as f32 + error >= points_per_char {
                 error = vals.len() as f32 + error - points_per_char;
+                freq_labels.push((full_size, self.index_to_freq(i)));
+
                 let width = if bar_width > 0 { bar_width } else { 1 };
                 let bar = "▀".repeat(width);
                 full_size += width;
@@ -110,10 +112,6 @@ impl SpectrumAnalyzer {
                 )
                 .unwrap();
                 vals.clear();
-
-                if full_size % 10 == 0 {
-                    freq_labels.push((full_size, self.index_to_freq(i)));
-                }
             }
         }
 
@@ -128,18 +126,24 @@ impl SpectrumAnalyzer {
         }
 
         queue!(stdout, style::ResetColor, cursor::MoveDown(1)).unwrap();
-        for i in freq_labels {
-            let freq = nice_freq(i.1);
-            if i.0 + freq.len() > console_size.0 as usize {
+        let mut i = 0;
+        while i < freq_labels.len() {
+            let val = &freq_labels[i];
+            let freq = nice_freq(val.1);
+            i += freq.len() + 3;
+
+            if val.0 + freq.len() >= console_size.0 as usize {
                 break;
             }
 
             queue!(
                 stdout,
-                cursor::MoveToColumn(i.0 as u16),
+                cursor::MoveToColumn(val.0 as u16),
                 style::Print(format!("└{freq}")),
             )
             .unwrap();
+
+            i += 1;
         }
 
         stdout.flush().unwrap();
@@ -270,13 +274,13 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
 fn nice_freq(mut hz: f32) -> String {
     for i in FREQUENCY_UNITS {
         if hz < 1000. {
-            return format!("{:.0}{}", hz, i);
+            return format!("{:.1}{}", hz, i);
         }
 
         hz /= 1000.;
     }
 
-    format!("{:.0}{}", hz, FREQUENCY_UNITS.last().unwrap())
+    format!("{:.1}{}", hz, FREQUENCY_UNITS.last().unwrap())
 }
 
 #[derive(Copy, Clone)]
