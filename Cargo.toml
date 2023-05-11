@@ -1,11 +1,11 @@
 [package]
-name = "ridgehacks-2023"
+name = "radio-data"
+description = "Tools for working with computer-connected radio transceivers."
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+afire = { version = "2.1.0", default-features = false, features = ["tracing"] }
 bitvec = "1.0.1"
 clap = "4.1.13"
 cpal = "0.15.1"
@@ -14,3 +14,5 @@ parking_lot = "0.12.1"
 rand = "0.8.5"
 rodio = "0.17.1"
 rustfft = "6.1.0"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"

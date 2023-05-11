@@ -3,7 +3,9 @@ use std::{num::ParseIntError, ops::Range, sync::Arc};
 use clap::{value_parser, Arg, Command};
 use cpal::SupportedStreamConfig;
 
-use crate::modules::{dtmf_receive, dtmf_send, range_test, spectrum_analyzer, InitContext, Module};
+use crate::modules::{
+    dtmf_receive, dtmf_send, range_test, spectrum_analyzer, true_random, InitContext, Module,
+};
 
 pub fn parse_args(
     input: SupportedStreamConfig,
@@ -16,7 +18,7 @@ pub fn parse_args(
         .subcommands([
             Command::new("range")
                 .alias("r")
-                .about("Lets you test the range if your radio system."),
+                .about("Lets you test the range of your radio system."),
             Command::new("dtmf-send")
                 .alias("ds")
                 .about("Sends DTMF tones to the radio.")
@@ -51,6 +53,38 @@ pub fn parse_args(
                         })
                         .default_value("15..14000"),
                 ),
+            Command::new("true-random")
+                .alias("trng")
+                .alias("t")
+                .about("Generates a true random numbers.")
+                .disable_help_flag(true)
+                .arg(
+                    Arg::new("host")
+                        .short('h')
+                        .help("The host to serve on.")
+                        .default_value("localhost"),
+                )
+                .arg(
+                    Arg::new("port")
+                        .short('p')
+                        .help("The port to serve on.")
+                        .value_parser(value_parser!(u16))
+                        .default_value("8080"),
+                )
+                .arg(
+                    Arg::new("threads")
+                        .short('t')
+                        .help("The number of threads to use.")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1"),
+                )
+                .arg(
+                    Arg::new("buffer-size")
+                        .short('b')
+                        .help("The size of the buffer to use.")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1024"),
+                ),
         ])
         .get_matches();
 
@@ -67,6 +101,7 @@ pub fn parse_args(
         Some(("spectrum", m)) => {
             Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m.to_owned())))
         }
+        Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m.to_owned()))),
         _ => panic!("Invalid Subcommand"),
     }
 }
