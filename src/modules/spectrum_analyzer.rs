@@ -20,8 +20,11 @@ use crossterm::{
 use parking_lot::Mutex;
 use rustfft::{num_complex::Complex, FftPlanner};
 
+use crate::misc::buf_writer::BufWriter;
+
 use super::{InitContext, Module};
 
+const FREQUENCY_UNITS: &[&str] = &["Hz", "kHz", "MHz", "GHz", "THz"];
 const COLOR_SCHEME: &[Color] = &[
     Color::hex(0x000000),
     Color::hex(0x742975),
@@ -70,17 +73,17 @@ impl SpectrumAnalyzer {
             return;
         }
 
-        let mut stdout = stdout();
+        let mut stdout = BufWriter::new(stdout());
         let console_size = terminal::size().unwrap();
         let bar_width = console_size.0 as usize / data.len();
         let points_per_char = data.len() as f32 / console_size.0 as f32;
 
         queue!(
             stdout,
-            cursor::MoveTo(0, 1),
-            terminal::Clear(terminal::ClearType::CurrentLine),
+            terminal::ScrollUp(1),
+            cursor::MoveTo(0, 0),
             style::Print(self.top_line(console_size)),
-            cursor::MoveTo(0, console_size.1),
+            cursor::MoveTo(0, console_size.1.saturating_sub(2)),
         )
         .unwrap();
 
@@ -108,7 +111,7 @@ impl SpectrumAnalyzer {
                 .unwrap();
                 vals.clear();
 
-                if full_size % 5 == 0 {
+                if full_size % 10 == 0 {
                     freq_labels.push((full_size, self.index_to_freq(i)));
                 }
             }
@@ -124,19 +127,21 @@ impl SpectrumAnalyzer {
             .unwrap();
         }
 
-        let mut bottom_line = " ".repeat(console_size.0 as usize);
+        queue!(stdout, style::ResetColor, cursor::MoveDown(1)).unwrap();
         for i in freq_labels {
-            // bottom_line
+            let freq = nice_freq(i.1);
+            if i.0 + freq.len() > console_size.0 as usize {
+                break;
+            }
+
+            queue!(
+                stdout,
+                cursor::MoveToColumn(i.0 as u16),
+                style::Print(format!("└{freq}")),
+            )
+            .unwrap();
         }
 
-        queue!(
-            stdout,
-            style::ResetColor,
-            terminal::ScrollUp(1),
-            cursor::MoveToColumn(0),
-            style::Print(bottom_line),
-        )
-        .unwrap();
         stdout.flush().unwrap();
         *last_samples = None;
     }
@@ -260,6 +265,18 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
     let norm = 1. - E.powf(-avg);
 
     color(norm)
+}
+
+fn nice_freq(mut hz: f32) -> String {
+    for i in FREQUENCY_UNITS {
+        if hz < 1000. {
+            return format!("{:.0}{}", hz, i);
+        }
+
+        hz /= 1000.;
+    }
+
+    format!("{:.0}{}", hz, FREQUENCY_UNITS.last().unwrap())
 }
 
 #[derive(Copy, Clone)]
