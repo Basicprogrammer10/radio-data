@@ -85,17 +85,20 @@ impl SpectrumAnalyzer {
         .unwrap();
 
         let mut vals = Vec::new();
+        let mut freq_labels = Vec::new();
         let mut error = 0.;
         let mut full_size = 0;
+
         let prev_data = last_samples.as_ref().unwrap().iter().copied();
-        for i in data.into_iter().zip(prev_data) {
-            vals.push(i);
+        for (i, e) in data.into_iter().zip(prev_data).enumerate() {
+            vals.push(e);
 
             if vals.len() as f32 + error >= points_per_char {
                 error = vals.len() as f32 + error - points_per_char;
                 let width = if bar_width > 0 { bar_width } else { 1 };
-                full_size += width;
                 let bar = "▀".repeat(width);
+                full_size += width;
+
                 queue!(
                     stdout,
                     style::SetForegroundColor(get_color(&vals, |x| x.0).into()),
@@ -103,8 +106,11 @@ impl SpectrumAnalyzer {
                     style::Print(bar),
                 )
                 .unwrap();
-
                 vals.clear();
+
+                if full_size % 5 == 0 {
+                    freq_labels.push((full_size, self.index_to_freq(i)));
+                }
             }
         }
 
@@ -118,12 +124,17 @@ impl SpectrumAnalyzer {
             .unwrap();
         }
 
+        let mut bottom_line = " ".repeat(console_size.0 as usize);
+        for i in freq_labels {
+            // bottom_line
+        }
+
         queue!(
             stdout,
             style::ResetColor,
             terminal::ScrollUp(1),
             cursor::MoveToColumn(0),
-            style::Print("[Bottom Text]    └ 12Hz"),
+            style::Print(bottom_line),
         )
         .unwrap();
         stdout.flush().unwrap();
@@ -164,6 +175,10 @@ impl SpectrumAnalyzer {
 
         let diff = (size.0 as usize).saturating_sub(start.len() + end.len());
         format!("{}{}{}", start, " ".repeat(diff), end)
+    }
+
+    fn index_to_freq(&self, idx: usize) -> f32 {
+        idx as f32 * self.ctx.sample_rate().input as f32 / self.fft_size as f32
     }
 }
 
