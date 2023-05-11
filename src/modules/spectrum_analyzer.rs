@@ -1,5 +1,7 @@
 use std::{
+    f32::consts::{E, PI},
     io::{stdout, Write},
+    ops::Range,
     sync::Arc,
 };
 
@@ -9,8 +11,17 @@ use rustfft::{num_complex::Complex, FftPlanner};
 
 use super::{InitContext, Module};
 
+// todo: allow setting these with command line arguments
 const FFT_SAMPLE_SIZE: usize = 1024 * 2;
-const COLOR_SCHEME: [Color; 2] = [Color::hex(0x05071c), Color::hex(0xf9e9da)];
+const DISPLAY_RANGE: Range<usize> = 15..14_000;
+const COLOR_SCHEME: &[Color] = &[
+    Color::hex(0x000000),
+    Color::hex(0x742975),
+    Color::hex(0xDD562E),
+    Color::hex(0xFD9719),
+    Color::hex(0xFFD76B),
+    Color::hex(0xFFFFFF),
+];
 
 pub struct SpectrumAnalyzer {
     ctx: InitContext,
@@ -48,7 +59,7 @@ impl SpectrumAnalyzer {
             if vals.len() as f32 + error >= points_per_char {
                 error = vals.len() as f32 + error - points_per_char;
                 let avg = vals.iter().sum::<f32>() / vals.len() as f32;
-                let color = color(avg);
+                let color = color(1. - E.powf(-avg));
 
                 let bar = "█".repeat(if bar_width > 0 { bar_width } else { 1 });
                 queue!(
@@ -94,18 +105,40 @@ impl Module for SpectrumAnalyzer {
             let fft = self.planner.lock().plan_fft_forward(FFT_SAMPLE_SIZE);
             fft.process(&mut buf);
 
-            self.print_row(
-                &buf[..buf.len() / 2]
+            let sample_rate = self.ctx.sample_rate().input as usize;
+            let start = DISPLAY_RANGE.start * FFT_SAMPLE_SIZE / sample_rate;
+            let end = DISPLAY_RANGE.end * FFT_SAMPLE_SIZE / sample_rate;
+
+            self.print_row(&hann_window(
+                &buf[start.max(0)..=end.min(buf.len() / 2)]
                     .iter()
                     .map(|x| x.norm())
                     .collect::<Vec<_>>(),
-            );
+            ));
         }
     }
 }
 
+fn hann_window(samples: &[f32]) -> Vec<f32> {
+    let mut out = Vec::with_capacity(samples.len());
+    for (i, e) in samples.iter().enumerate() {
+        let a = 2.0 * PI * i as f32;
+        let n = (a / samples.len() as f32).cos();
+        let m = 0.5 * (1.0 - n);
+        out.push(m * e)
+    }
+    out
+}
+
 fn color(val: f32) -> Color {
-    COLOR_SCHEME[0].lerp(&COLOR_SCHEME[1], val)
+    let val = val.max(0.).min(1.);
+    let sections = COLOR_SCHEME.len() - 2;
+    let section = (sections as f32 * val).floor() as usize;
+
+    COLOR_SCHEME[section].lerp(
+        &COLOR_SCHEME[section + 1],
+        val * sections as f32 - section as f32,
+    )
 }
 
 struct Color {
