@@ -7,7 +7,7 @@ use std::{
 };
 
 use afire::{
-    trace::{self, Level},
+    trace::{self, Formatter, Level},
     Server,
 };
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
@@ -22,7 +22,7 @@ pub struct TrueRandom {
 
 struct Buffer {
     target: usize,
-    data: Mutex<Vec<usize>>,
+    data: Mutex<Vec<u8>>,
     size: AtomicUsize,
 }
 
@@ -36,6 +36,7 @@ struct Args {
 impl TrueRandom {
     pub fn new(ctx: InitContext) -> Arc<Self> {
         trace::set_log_level(Level::Trace);
+        trace::set_log_formatter(Logger);
 
         let args = Args {
             host: ctx.args.get_one::<String>("host").unwrap().to_owned(),
@@ -96,7 +97,7 @@ impl Buffer {
             return;
         }
 
-        let mut new_data = BitVec::<usize, Lsb0>::new();
+        let mut new_data = BitVec::<u8, Lsb0>::new();
         for &sample in data {
             let bits = sample.to_bits();
             new_data.extend(
@@ -116,13 +117,55 @@ impl Buffer {
         data.extend(new_data[..needed.min(new_data.len())].into_iter());
         self.size.store(data.len(), Ordering::Release);
     }
+
+    pub fn get_raw(&self, len: usize) -> Option<Vec<u8>> {
+        let mut data = self.data.lock();
+        if data.len() < len {
+            return None;
+        }
+
+        let out = data.drain(..len).collect();
+        self.size.store(data.len(), Ordering::Release);
+        Some(out)
+    }
+}
+
+fn entropy(data: &[u8]) -> f32 {
+    let mut counts = [0usize; 256];
+    for &byte in data {
+        counts[byte as usize] += 1;
+    }
+
+    let mut entropy = 0f32;
+    for count in counts {
+        if count == 0 {
+            continue;
+        }
+
+        let p = count as f32 / data.len() as f32;
+        entropy -= p * p.log2();
+    }
+
+    entropy / (data.len() as f32).log2()
+}
+
+struct Logger;
+
+impl Formatter for Logger {
+    fn format(&self, level: Level, color: bool, msg: String) {
+        println!(
+            "[L] {}{msg}{}",
+            if color { level.get_color() } else { "" },
+            if color { "\x1b[0m" } else { "" }
+        );
+    }
 }
 
 mod routes {
     use afire::{Content, Method, Response, Server};
     use serde::Serialize;
 
-    use super::TrueRandom;
+    use super::{entropy, TrueRandom};
 
     #[derive(Serialize)]
     struct Status {
@@ -142,6 +185,22 @@ mod routes {
             Response::new()
                 .text(serde_json::to_string(&status).unwrap())
                 .content(Content::JSON)
+        });
+
+        server.stateful_route(Method::GET, "/data/{len}", |app, req| {
+            let len = req.param("len").unwrap().parse::<usize>().unwrap();
+            if len > app.buffer.size() {
+                return Response::new()
+                    .status(400)
+                    .text("Buffer not filled enough.");
+            }
+
+            let data = app.buffer.get_raw(len).unwrap();
+            let entropy = entropy(&data);
+            Response::new()
+                .bytes(&data)
+                .content(Content::JSON)
+                .header("X-Entropy", entropy.to_string())
         });
     }
 }
