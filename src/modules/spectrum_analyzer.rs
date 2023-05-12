@@ -1,7 +1,10 @@
 //! Spectrum analyzer module that uses the terminal.
 //!
 //! For future reference:
-//! https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html
+//! - https://phip1611.de/blog/frequency-spectrum-analysis-with-fft-in-rust/
+//! - https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
+//! - https://www.youtube.com/watch?v=dCeHOf4cJE0
+//! - https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html
 
 use std::{
     f32::consts::{E, PI},

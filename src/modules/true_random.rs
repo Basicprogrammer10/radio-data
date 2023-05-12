@@ -10,6 +10,7 @@ use afire::{
     trace::{self, Level},
     Server,
 };
+use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 use parking_lot::Mutex;
 
 use super::{InitContext, Module};
@@ -20,7 +21,8 @@ pub struct TrueRandom {
 }
 
 struct Buffer {
-    data: Mutex<Vec<f32>>,
+    target: usize,
+    data: Mutex<Vec<usize>>,
     size: AtomicUsize,
 }
 
@@ -75,6 +77,7 @@ impl Module for TrueRandom {
 impl Buffer {
     pub fn new(size: usize) -> Self {
         Self {
+            target: size,
             data: Mutex::new(Vec::with_capacity(size)),
             size: AtomicUsize::new(0),
         }
@@ -88,10 +91,30 @@ impl Buffer {
     /// Fill the buffer with the given data.
     /// Will not necessarily use all of the data or fill the buffer completely.
     pub fn fill_buffer(&self, data: &[f32]) {
-        // Todo:: this
-        let mut buffer = self.data.lock();
-        buffer.extend_from_slice(data);
-        self.size.store(buffer.len(), Ordering::Release);
+        let needed = self.target.saturating_sub(self.size());
+        if needed == 0 {
+            return;
+        }
+
+        let mut new_data = BitVec::<usize, Lsb0>::new();
+        for &sample in data {
+            let bits = sample.to_bits();
+            new_data.extend(
+                bits.view_bits::<Lsb0>()
+                    .chunks(2)
+                    .filter(|x| x[0] != x[1])
+                    .map(|x| x[0]),
+            );
+
+            if new_data.len() >= needed {
+                break;
+            }
+        }
+
+        let new_data = new_data.into_vec();
+        let mut data = self.data.lock();
+        data.extend(new_data[..needed.min(new_data.len())].into_iter());
+        self.size.store(data.len(), Ordering::Release);
     }
 }
 
@@ -105,6 +128,7 @@ mod routes {
     struct Status {
         buffer_filled: usize,
         buffer_size: usize,
+        percent_filled: f32,
     }
 
     pub fn attach(server: &mut Server<TrueRandom>) {
@@ -112,6 +136,7 @@ mod routes {
             let status = Status {
                 buffer_filled: app.buffer.size(),
                 buffer_size: app.args.buffer_size,
+                percent_filled: app.buffer.size() as f32 / app.args.buffer_size as f32,
             };
 
             Response::new()

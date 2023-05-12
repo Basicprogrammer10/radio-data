@@ -1,6 +1,6 @@
 use std::{num::ParseIntError, ops::Range, sync::Arc};
 
-use clap::{value_parser, Arg, Command};
+use clap::{value_parser, Arg, ArgMatches, Command};
 use cpal::SupportedStreamConfig;
 
 use crate::modules::{
@@ -88,20 +88,18 @@ pub fn parse_args(
         ])
         .get_matches();
 
-    let ic = |x| InitContext {
-        args: x,
+    let ic = |x: &ArgMatches| InitContext {
+        args: x.to_owned(),
         input,
         output,
     };
 
     match m.subcommand() {
-        Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m.to_owned()))),
-        Some(("dtmf-send", m)) => Box::new(dtmf_send::DtmfSend::new(ic(m.to_owned()))),
-        Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m.to_owned()))),
-        Some(("spectrum", m)) => {
-            Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m.to_owned())))
-        }
-        Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m.to_owned()))),
+        Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m))),
+        Some(("dtmf-send", m)) => Box::new(dtmf_send::DtmfSend::new(ic(m))),
+        Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
+        Some(("spectrum", m)) => Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m))),
+        Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m))),
         _ => panic!("Invalid Subcommand"),
     }
 }
