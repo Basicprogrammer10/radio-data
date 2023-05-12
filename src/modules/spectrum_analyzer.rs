@@ -162,8 +162,8 @@ impl SpectrumAnalyzer {
         }
 
         match event::read().unwrap() {
-            event::Event::Key(e) => match e.code {
-                KeyCode::Esc => {
+            event::Event::Key(e) => {
+                if e.code == KeyCode::Esc {
                     execute!(
                         stdout(),
                         terminal::LeaveAlternateScreen,
@@ -172,16 +172,18 @@ impl SpectrumAnalyzer {
                     )
                     .unwrap();
                     terminal::disable_raw_mode().unwrap();
-                    process::exit(0);
+                    process::exit(0)
                 }
-                _ => {}
-            },
+            }
+            event::Event::Resize(..) => {
+                execute!(stdout(), terminal::Clear(terminal::ClearType::All)).unwrap()
+            }
             _ => {}
         }
     }
 
     fn top_line(&self, size: (u16, u16), points_per_char: f32) -> String {
-        let start = format!("[RADIO-DATA SPECTRUM ANALYZER]");
+        let start = "[RADIO-DATA SPECTRUM ANALYZER]";
         let end = format!(
             "{{FFT size: {}, Domain: {}..{}, BinRes: {}, BinChars: {:.1}}} [ESC: Quit]",
             self.fft_size,

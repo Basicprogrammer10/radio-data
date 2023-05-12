@@ -1,21 +1,36 @@
-use std::{num::ParseIntError, ops::Range, sync::Arc};
+use std::{num::ParseIntError, ops::Range, process, sync::Arc};
 
 use clap::{value_parser, Arg, ArgMatches, Command};
-use cpal::SupportedStreamConfig;
+use cpal::{traits::HostTrait, SupportedStreamConfig};
+use rodio::DeviceTrait;
 
 use crate::modules::{
     dtmf_receive, dtmf_send, range_test, spectrum_analyzer, true_random, InitContext, Module,
 };
 
-pub fn parse_args(
-    input: SupportedStreamConfig,
-    output: SupportedStreamConfig,
-) -> Box<Arc<dyn Module + Send + Sync + 'static>> {
-    let m = Command::new("radio-data")
+type BoxedModule = Box<Arc<dyn Module + Send + Sync + 'static>>;
+
+pub fn parse_args() -> ArgMatches {
+    Command::new("radio-data")
         .author("Connor Slade")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(true)
+        .arg(
+            Arg::new("input-device")
+                .short('i')
+                .help("The input device to use.")
+                .default_value("default"),
+        )
+        .arg(
+            Arg::new("output-device")
+                .short('o')
+                .help("The output device to use.")
+                .default_value("default"),
+        )
         .subcommands([
+            Command::new("device")
+                .alias("d")
+                .about("Lists the available audio devices."),
             Command::new("range")
                 .alias("r")
                 .about("Lets you test the range of your radio system."),
@@ -86,20 +101,54 @@ pub fn parse_args(
                         .default_value("1024"),
                 ),
         ])
-        .get_matches();
+        .get_matches()
+}
 
+pub fn get_module(
+    args: &ArgMatches,
+    input: SupportedStreamConfig,
+    output: SupportedStreamConfig,
+) -> BoxedModule {
     let ic = |x: &ArgMatches| InitContext {
         args: x.to_owned(),
         input,
         output,
     };
 
-    match m.subcommand() {
+    match args.subcommand() {
+        Some(("device", _)) => {
+            devices();
+            process::exit(0);
+        }
         Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m))),
         Some(("dtmf-send", m)) => Box::new(dtmf_send::DtmfSend::new(ic(m))),
         Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
         Some(("spectrum", m)) => Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m))),
         Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m))),
         _ => panic!("Invalid Subcommand"),
+    }
+}
+
+fn devices() {
+    let host = cpal::default_host();
+    println!("[*] Using Host: {}", host.id().name());
+
+    let devices = host.devices().unwrap().collect::<Vec<_>>();
+    if devices.is_empty() {
+        println!("[*] No devices found.");
+        return;
+    }
+
+    println!("[*] Devices ({})", devices.len());
+    for (i, device) in devices.iter().enumerate() {
+        let input = device.default_input_config().is_ok();
+        let output = device.default_output_config().is_ok();
+        println!(
+            " {}─ {}{} {}",
+            if i == devices.len() - 1 { "└" } else { "├" },
+            if input { "I" } else { "" },
+            if output { "O" } else { "" },
+            device.name().unwrap()
+        );
     }
 }

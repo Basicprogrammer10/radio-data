@@ -114,7 +114,7 @@ impl Buffer {
 
         let new_data = new_data.into_vec();
         let mut data = self.data.lock();
-        data.extend(new_data[..needed.min(new_data.len())].into_iter());
+        data.extend(new_data[..needed.min(new_data.len())].iter());
         self.size.store(data.len(), Ordering::Release);
     }
 
