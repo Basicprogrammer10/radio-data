@@ -172,14 +172,24 @@ mod routes {
         buffer_filled: usize,
         buffer_size: usize,
         percent_filled: f32,
+        bit_ratio: f32,
     }
 
     pub fn attach(server: &mut Server<TrueRandom>) {
         server.stateful_route(Method::GET, "/status", |app, _req| {
+            let mut bit_ones = 0;
+            let buffer = app.buffer.data.lock();
+            let bits = buffer.len() * 8;
+            for i in buffer.iter() {
+                bit_ones += i.count_ones();
+            }
+            drop(buffer);
+
             let status = Status {
                 buffer_filled: app.buffer.size(),
                 buffer_size: app.args.buffer_size,
                 percent_filled: app.buffer.size() as f32 / app.args.buffer_size as f32,
+                bit_ratio: bit_ones as f32 / bits as f32,
             };
 
             Response::new()
@@ -187,7 +197,7 @@ mod routes {
                 .content(Content::JSON)
         });
 
-        server.stateful_route(Method::GET, "/data/{len}", |app, req| {
+        server.stateful_route(Method::GET, "/raw/{len}", |app, req| {
             let len = req.param("len").unwrap().parse::<usize>().unwrap();
             if len > app.buffer.size() {
                 return Response::new()
@@ -199,6 +209,40 @@ mod routes {
             let entropy = entropy(&data);
             Response::new()
                 .bytes(&data)
+                .content(Content::JSON)
+                .header("X-Entropy", entropy.to_string())
+        });
+
+        server.stateful_route(Method::GET, "/data/number/{min}/{max}", |app, req| {
+            let min = req.param("min").unwrap().parse::<f64>().unwrap();
+            let max = req.param("max").unwrap().parse::<f64>().unwrap();
+
+            let data = app.buffer.get_raw(8).unwrap();
+            let entropy = entropy(&data);
+            let number = u64::from_le_bytes([
+                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+            ]) as f64;
+            let number = number / u64::MAX as f64 * (max - min) + min;
+
+            Response::new()
+                .text(number)
+                .content(Content::JSON)
+                .header("X-Entropy", entropy.to_string())
+        });
+
+        server.stateful_route(Method::GET, "/data/integer/{min}/{max}", |app, req| {
+            let min = req.param("min").unwrap().parse::<u64>().unwrap() as f32;
+            let max = req.param("max").unwrap().parse::<u64>().unwrap() as f32;
+
+            let data = app.buffer.get_raw(8).unwrap();
+            let entropy = entropy(&data);
+            let number = u64::from_le_bytes([
+                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+            ]) as f32;
+            let number = (number / u64::MAX as f32) * (max - min) + min;
+
+            Response::new()
+                .text(number)
                 .content(Content::JSON)
                 .header("X-Entropy", entropy.to_string())
         });
