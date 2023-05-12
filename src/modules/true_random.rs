@@ -173,6 +173,7 @@ mod routes {
         buffer_size: usize,
         percent_filled: f32,
         bit_ratio: f32,
+        entropy: f32,
     }
 
     pub fn attach(server: &mut Server<TrueRandom>) {
@@ -190,6 +191,7 @@ mod routes {
                 buffer_size: app.args.buffer_size,
                 percent_filled: app.buffer.size() as f32 / app.args.buffer_size as f32,
                 bit_ratio: bit_ones as f32 / bits as f32,
+                entropy: entropy(&app.buffer.data.lock()),
             };
 
             Response::new()
