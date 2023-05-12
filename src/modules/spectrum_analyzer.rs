@@ -40,6 +40,7 @@ const COLOR_SCHEME: &[Color] = &[
 pub struct SpectrumAnalyzer {
     ctx: InitContext,
     fft_size: usize,
+    resolution: f32,
     display_range: Range<usize>,
 
     planner: Mutex<FftPlanner<f32>>,
@@ -57,6 +58,7 @@ impl SpectrumAnalyzer {
             .to_owned();
 
         Arc::new(Self {
+            resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
             ctx,
             fft_size,
             display_range,
@@ -85,7 +87,7 @@ impl SpectrumAnalyzer {
             stdout,
             terminal::ScrollUp(1),
             cursor::MoveTo(0, 0),
-            style::Print(self.top_line(console_size)),
+            style::Print(self.top_line(console_size, points_per_char)),
             cursor::MoveTo(0, console_size.1.saturating_sub(2)),
         )
         .unwrap();
@@ -109,8 +111,8 @@ impl SpectrumAnalyzer {
 
                 queue!(
                     stdout,
-                    style::SetForegroundColor(get_color(&vals, |x| x.0).into()),
-                    style::SetBackgroundColor(get_color(&vals, |x| x.1).into()),
+                    style::SetForegroundColor(get_color(&vals, |x| x.1).into()),
+                    style::SetBackgroundColor(get_color(&vals, |x| x.0).into()),
                     style::Print(bar),
                 )
                 .unwrap();
@@ -178,11 +180,15 @@ impl SpectrumAnalyzer {
         }
     }
 
-    fn top_line(&self, size: (u16, u16)) -> String {
+    fn top_line(&self, size: (u16, u16), points_per_char: f32) -> String {
         let start = format!("[RADIO-DATA SPECTRUM ANALYZER]");
         let end = format!(
-            "{{FFT size: {}, Display range {:?}}} [ESC: Quit]",
-            self.fft_size, self.display_range
+            "{{FFT size: {}, Domain: {}..{}, BinRes: {}, BinChars: {:.1}}} [ESC: Quit]",
+            self.fft_size,
+            nice_freq(self.display_range.start as f32),
+            nice_freq(self.display_range.end as f32),
+            nice_freq(self.resolution),
+            points_per_char
         );
 
         let diff = (size.0 as usize).saturating_sub(start.len() + end.len());
@@ -200,10 +206,9 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn init(&self) {
-        let resolution = 1. / self.fft_size as f32 * self.ctx.sample_rate().input as f32;
         println!("[I] FFT size: {}", self.fft_size);
         println!("[I] Display range: {:?}", self.display_range);
-        println!("[I] Resolution: {resolution} Hz");
+        println!("[I] Resolution: {}", nice_freq(self.resolution));
 
         terminal::enable_raw_mode().unwrap();
 

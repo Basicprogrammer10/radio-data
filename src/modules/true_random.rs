@@ -146,7 +146,7 @@ fn entropy(data: &[u8]) -> f32 {
         entropy -= p * p.log2();
     }
 
-    entropy / (data.len() as f32).log2()
+    entropy // (data.len() as f32).log2()
 }
 
 struct Logger;
@@ -211,7 +211,6 @@ mod routes {
             let entropy = entropy(&data);
             Response::new()
                 .bytes(&data)
-                .content(Content::JSON)
                 .header("X-Entropy", entropy.to_string())
         });
 
