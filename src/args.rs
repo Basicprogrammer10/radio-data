@@ -1,8 +1,10 @@
 use std::{num::ParseIntError, ops::Range, process, sync::Arc};
 
 use clap::{value_parser, Arg, ArgMatches, Command};
-use cpal::{traits::HostTrait, SupportedStreamConfig};
-use rodio::DeviceTrait;
+use cpal::{
+    traits::{DeviceTrait, HostTrait},
+    SupportedStreamConfig,
+};
 
 use crate::modules::{
     dtmf_receive, dtmf_send, range_test, spectrum_analyzer, true_random, InitContext, Module,
@@ -26,6 +28,20 @@ pub fn parse_args() -> ArgMatches {
                 .short('o')
                 .help("The output device to use.")
                 .default_value("default"),
+        )
+        .arg(
+            Arg::new("input-gain")
+                .long("ig")
+                .help("The gain to apply to the input device.")
+                .default_value("1.0")
+                .value_parser(value_parser!(f32)),
+        )
+        .arg(
+            Arg::new("output-gain")
+                .long("og")
+                .help("The gain to apply to the output device.")
+                .default_value("1.0")
+                .value_parser(value_parser!(f32)),
         )
         .subcommands([
             Command::new("device")

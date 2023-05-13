@@ -73,7 +73,7 @@ impl Module for TrueRandom {
 
         self.buffer.fill_buffer(
             &input
-                .into_iter()
+                .iter()
                 .map(|x| (x * i32::MAX as f32) as i32)
                 .collect::<Vec<_>>(),
         );
