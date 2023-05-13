@@ -84,6 +84,12 @@ pub fn parse_args() -> ArgMatches {
                             Ok::<Range<usize>, ParseIntError>(start..end)
                         })
                         .default_value("15..14000"),
+                )
+                .arg(
+                    Arg::new("passthrough")
+                        .short('p')
+                        .help("Pass the audio through to the output device.")
+                        .num_args(0),
                 ),
             Command::new("true-random")
                 .alias("trng")

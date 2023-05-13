@@ -7,10 +7,11 @@
 //! - https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html
 
 use std::{
+    collections::VecDeque,
     f32::consts::{E, PI},
     io::{stdout, Write},
     ops::Range,
-    process,
+    panic, process,
     sync::Arc,
     time::Duration,
 };
@@ -21,6 +22,7 @@ use crossterm::{
     execute, queue, style, terminal,
 };
 use parking_lot::Mutex;
+use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use rustfft::{num_complex::Complex, FftPlanner};
 
 use crate::misc::buf_writer::BufWriter;
@@ -43,9 +45,18 @@ pub struct SpectrumAnalyzer {
     resolution: f32,
     display_range: Range<usize>,
 
+    passthrough: Option<Mutex<PassThrough>>,
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
     last_samples: Mutex<Option<Vec<f32>>>,
+}
+
+struct PassThrough {
+    ctx: InitContext,
+    resample_size: usize,
+    resampler: SincFixedIn<f32>,
+    buffer: Vec<VecDeque<f32>>,
+    out_buffer: Vec<VecDeque<f32>>,
 }
 
 impl SpectrumAnalyzer {
@@ -56,6 +67,10 @@ impl SpectrumAnalyzer {
             .get_one::<Range<usize>>("display-range")
             .unwrap()
             .to_owned();
+        let passthrough = ctx
+            .args
+            .get_flag("passthrough")
+            .then(|| Mutex::new(PassThrough::new(ctx.clone(), fft_size)));
 
         Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
@@ -63,6 +78,7 @@ impl SpectrumAnalyzer {
             fft_size,
             display_range,
 
+            passthrough,
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
             last_samples: Mutex::new(None),
@@ -164,15 +180,8 @@ impl SpectrumAnalyzer {
         match event::read().unwrap() {
             event::Event::Key(e) => {
                 if e.code == KeyCode::Esc {
-                    execute!(
-                        stdout(),
-                        terminal::LeaveAlternateScreen,
-                        terminal::EnableLineWrap,
-                        cursor::Show
-                    )
-                    .unwrap();
-                    terminal::disable_raw_mode().unwrap();
-                    process::exit(0)
+                    exit();
+                    process::exit(0);
                 }
             }
             event::Event::Resize(..) => {
@@ -202,6 +211,73 @@ impl SpectrumAnalyzer {
     }
 }
 
+impl PassThrough {
+    fn new(ctx: InitContext, fft_size: usize) -> Self {
+        let fft_size = 1024 * 4;
+        let channels = ctx.input.channels().min(ctx.output.channels()) as usize;
+        let parameters = InterpolationParameters {
+            sinc_len: 256,
+            f_cutoff: 0.95,
+            interpolation: InterpolationType::Linear,
+            oversampling_factor: 256,
+            window: WindowFunction::BlackmanHarris2,
+        };
+
+        let resampler = SincFixedIn::new(
+            (ctx.sample_rate().output / ctx.sample_rate().input) as f64,
+            4.,
+            parameters,
+            fft_size,
+            channels,
+        )
+        .unwrap();
+
+        Self {
+            ctx,
+            resampler,
+            resample_size: fft_size,
+            buffer: vec![VecDeque::new(); channels],
+            out_buffer: vec![VecDeque::new(); channels],
+        }
+    }
+
+    fn add_samples(&mut self, samples: &[f32]) {
+        let inp_channels = self.ctx.input.channels() as usize;
+        let channels = self.buffer.len();
+        for (i, e) in samples
+            .iter()
+            .enumerate()
+            .filter(|x| x.0 % inp_channels <= channels)
+        {
+            let channel = i % self.ctx.input.channels() as usize;
+            self.buffer[channel].push_back(*e);
+        }
+
+        while self.buffer[0].len() >= self.resample_size {
+            let mut samples = vec![Vec::new(); channels];
+            for _ in 0..self.resample_size {
+                for j in 0..channels {
+                    samples[j].push(self.buffer[j].remove(0).unwrap_or(0.0));
+                }
+            }
+
+            let out = self.resampler.process(&samples, None).unwrap();
+            for (i, e) in out.into_iter().enumerate() {
+                self.out_buffer[i].extend(e);
+            }
+        }
+    }
+
+    fn write_output(&mut self, output: &mut [f32]) {
+        let out_channels = self.ctx.output.channels() as usize;
+
+        for (i, e) in output.iter_mut().enumerate() {
+            let channel = i % out_channels;
+            *e = self.out_buffer[channel].pop_front().unwrap_or(0.0);
+        }
+    }
+}
+
 impl Module for SpectrumAnalyzer {
     fn name(&self) -> &'static str {
         "spectrum_analyzer"
@@ -211,6 +287,12 @@ impl Module for SpectrumAnalyzer {
         println!("[I] FFT size: {}", self.fft_size);
         println!("[I] Display range: {:?}", self.display_range);
         println!("[I] Resolution: {}", nice_freq(self.resolution));
+
+        panic::set_hook(Box::new(|info| {
+            exit();
+            eprintln!("{info}");
+            process::exit(0)
+        }));
 
         terminal::enable_raw_mode().unwrap();
 
@@ -226,6 +308,10 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn input(&self, input: &[f32]) {
+        if let Some(i) = &self.passthrough {
+            i.lock().add_samples(input);
+        }
+
         let mut samples = self.samples.lock();
         samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
 
@@ -259,6 +345,12 @@ impl Module for SpectrumAnalyzer {
                     .map(|x| x.norm())
                     .collect::<Vec<_>>(),
             ));
+        }
+    }
+
+    fn output(&self, output: &mut [f32]) {
+        if let Some(i) = &self.passthrough {
+            i.lock().write_output(output);
         }
     }
 }
@@ -302,6 +394,17 @@ fn nice_freq(mut hz: f32) -> String {
     }
 
     format!("{:.1}{}", hz, FREQUENCY_UNITS.last().unwrap())
+}
+
+fn exit() {
+    execute!(
+        stdout(),
+        terminal::LeaveAlternateScreen,
+        terminal::EnableLineWrap,
+        cursor::Show
+    )
+    .unwrap();
+    terminal::disable_raw_mode().unwrap();
 }
 
 #[derive(Copy, Clone)]

@@ -37,6 +37,7 @@ pub trait Module {
     }
 }
 
+#[derive(Clone)]
 pub struct InitContext {
     pub args: ArgMatches,
     pub input: SupportedStreamConfig,
