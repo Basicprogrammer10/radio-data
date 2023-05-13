@@ -71,7 +71,12 @@ impl Module for TrueRandom {
             return;
         }
 
-        self.buffer.fill_buffer(input);
+        self.buffer.fill_buffer(
+            &input
+                .into_iter()
+                .map(|x| (x * i32::MAX as f32) as i32)
+                .collect::<Vec<_>>(),
+        );
     }
 }
 
@@ -91,7 +96,7 @@ impl Buffer {
 
     /// Fill the buffer with the given data.
     /// Will not necessarily use all of the data or fill the buffer completely.
-    pub fn fill_buffer(&self, data: &[f32]) {
+    pub fn fill_buffer(&self, data: &[i32]) {
         let needed = self.target.saturating_sub(self.size());
         if needed == 0 {
             return;
@@ -99,9 +104,10 @@ impl Buffer {
 
         let mut new_data = BitVec::<u8, Lsb0>::new();
         for &sample in data {
-            let bits = sample.to_bits();
             new_data.extend(
-                bits.view_bits::<Lsb0>()
+                sample
+                    .to_ne_bytes()
+                    .view_bits::<Lsb0>()
                     .chunks(2)
                     .filter(|x| x[0] != x[1])
                     .map(|x| x[0]),
