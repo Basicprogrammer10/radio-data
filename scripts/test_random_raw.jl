@@ -1,4 +1,4 @@
-using Plots, SpecialFunctions
+using Plots, SpecialFunctions, Crayons
 include("random_lib.jl")
 
 BUFFER_SIZE = 10_000 # missing
@@ -27,6 +27,11 @@ println("[*] Buffer loaded")
 # Monobit Test
 bits = bit_vec(buffer)
 n = length(bits)
+
+o = sum(bits)
+z = n - ones
+println("[*] Bit Ratio: $o/$z = $(o/z)")
+
 s = 0
 for i in eachindex(bits)
     if bits[i]
@@ -38,11 +43,10 @@ end
 so = abs(s) / sqrt(n)
 p = erfc(so / sqrt(2))
 println("[*] Monobit Test: $p")
-if p < 0.01
-    println(" | Sequence is not random")
-else
-    println(" | Sequence is random")
-end
+passed = p >= 0.01
+style = Crayon(foreground=passed ? :green : :red)
+println(style, " | Sequence is $(passed ? "random (>= 0.01)" : "not random (< 0.01))")")
+print(Crayon(reset=true))
 
 # Plot the buffer as a bar chart
 display(histogram(buffer, nbins=256, title="Buffer", xlabel="Value", ylabel="Count", size=(1000, 1000)))
