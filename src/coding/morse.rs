@@ -17,6 +17,8 @@ enum Morse {
     Dit,
     /// Three times the length of a dit
     Dah,
+    /// A space between words
+    Space,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,13 +92,19 @@ impl Iterator for MorseEncoder {
         };
 
         if sending.time == 0 {
+            self.tone.reset();
             self.state =
                 EncodeState::Waiting(self.dit_length * 3 * self.sample_rate.output as u64 / 1000);
             return Some(0.0);
         }
 
         sending.time -= 1;
-        Some(self.tone.next().unwrap())
+        let out = match sending.data {
+            Morse::Dit | Morse::Dah => self.tone.next().unwrap(),
+            Morse::Space => 0.0,
+        };
+
+        Some(out)
     }
 }
 
@@ -105,8 +113,9 @@ impl Morse {
         let mut result = Vec::new();
         for c in s.chars() {
             let index = match c.to_ascii_uppercase() {
-                'A'..='Z' => c as u8 - b'A',
-                '0'..='9' => c as u8 - b'0' + 26,
+                e @ 'A'..='Z' => e as u8 - b'A',
+                e @ '0'..='9' => e as u8 - b'0' + 26,
+                ' ' => 56,
                 '.' => 36,
                 ',' => 37,
                 '?' => 38,
@@ -125,11 +134,13 @@ impl Morse {
                 '"' => 51,
                 '$' => 52,
                 '@' => 53,
-                ' ' => 54,
+                '¿' => 54,
+                '¡' => 55,
                 _ => anyhow::bail!("Invalid character: {}", c),
             };
 
             result.extend_from_slice(MORSE_ENCODING[index as usize].1);
+            result.push(Morse::Space);
         }
 
         Ok(result)
@@ -138,13 +149,14 @@ impl Morse {
     fn duration(&self, dit_length: u64) -> u64 {
         match self {
             Self::Dit => dit_length,
+            Self::Space => dit_length / 2,
             Self::Dah => dit_length * 3,
         }
     }
 }
 
 use Morse::*;
-const MORSE_ENCODING: [(char, &[Morse]); 56] = [
+const MORSE_ENCODING: [(char, &[Morse]); 57] = [
     ('A', &[Dit, Dah]),
     ('B', &[Dah, Dit, Dit, Dit]),
     ('C', &[Dah, Dit, Dah, Dit]),
@@ -201,4 +213,5 @@ const MORSE_ENCODING: [(char, &[Morse]); 56] = [
     ('@', &[Dit, Dah, Dah, Dit, Dah]),
     ('¿', &[Dit, Dit, Dah, Dit, Dah]),
     ('¡', &[Dah, Dah, Dit, Dit, Dit]),
+    (' ', &[Space]),
 ];

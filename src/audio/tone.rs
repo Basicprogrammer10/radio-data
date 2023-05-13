@@ -23,6 +23,11 @@ impl Tone {
         self.duration = Some(duration);
         self
     }
+
+    pub fn reset(&mut self) {
+        self.i = 0_f32;
+        self.duration = None;
+    }
 }
 
 impl Iterator for Tone {

@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 use super::{InitContext, Module};
 
 pub struct TrueRandom {
+    ctx: InitContext,
     args: Args,
     buffer: Buffer,
 }
@@ -46,6 +47,7 @@ impl TrueRandom {
         };
 
         let this = Self {
+            ctx,
             buffer: Buffer::new(args.buffer_size),
             args,
         };
@@ -71,8 +73,20 @@ impl Module for TrueRandom {
             return;
         }
 
+        let mut buffer = Vec::with_capacity(input.len() / self.ctx.input.channels() as usize + 1);
+        let mut working = 0.0;
+        for (i, e) in input.iter().enumerate() {
+            working += e;
+
+            if i != 0 && i % self.ctx.input.channels() as usize == 0 {
+                buffer.push(working / self.ctx.input.channels() as f32);
+                working = 0.0;
+            }
+        }
+        buffer.push(working / self.ctx.input.channels() as f32);
+
         self.buffer.fill_buffer(
-            &input
+            &buffer
                 .iter()
                 .map(|x| (x * i32::MAX as f32) as i32)
                 .collect::<Vec<_>>(),

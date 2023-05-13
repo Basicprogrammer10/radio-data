@@ -7,6 +7,7 @@ use crate::coding::morse::MorseEncoder;
 use super::{InitContext, Module};
 
 pub struct MorseCode {
+    ctx: InitContext,
     encoder: Mutex<MorseEncoder>,
 }
 
@@ -20,6 +21,7 @@ impl MorseCode {
         encoder.add_data(text).unwrap();
 
         Arc::new(Self {
+            ctx,
             encoder: Mutex::new(encoder),
         })
     }
@@ -32,8 +34,13 @@ impl Module for MorseCode {
 
     fn output(&self, output: &mut [f32]) {
         let mut encoder = self.encoder.lock();
-        for i in output.iter_mut() {
-            *i = encoder.next().unwrap();
+        let mut last = 0.0;
+        for (i, e) in output.iter_mut().enumerate() {
+            if i % self.ctx.output.channels() as usize == 0 {
+                last = encoder.next().unwrap_or(last);
+            }
+
+            *e = last;
         }
     }
 }

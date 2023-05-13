@@ -17,20 +17,22 @@ fn main() {
     // Get module
     let module = args::get_module(
         &args,
-        devices.output_config.clone(),
         devices.input_config.clone(),
+        devices.output_config.clone(),
     );
     println!("[*] Running module `{}`", module.name());
 
     println!(
-        "[*] Input  hooked into `{}` ({})",
+        "[*] Input  hooked into `{}` ({}) [{}]",
         devices.input_device.name().unwrap(),
-        devices.input_config.sample_rate().0
+        devices.input_config.sample_rate().0,
+        devices.input_config.channels()
     );
     println!(
-        "[*] Output hooked into `{}` ({})",
+        "[*] Output hooked into `{}` ({}) [{}]",
         devices.output_device.name().unwrap(),
-        devices.output_config.sample_rate().0
+        devices.output_config.sample_rate().0,
+        devices.output_config.channels()
     );
 
     // Init module and IO streams

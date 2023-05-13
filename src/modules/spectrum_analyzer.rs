@@ -227,7 +227,18 @@ impl Module for SpectrumAnalyzer {
 
     fn input(&self, input: &[f32]) {
         let mut samples = self.samples.lock();
-        samples.extend_from_slice(input);
+        samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
+
+        let mut working = 0.0;
+        for (i, e) in input.iter().enumerate() {
+            working += e;
+
+            if i != 0 && i % self.ctx.input.channels() as usize == 0 {
+                samples.push(working / self.ctx.input.channels() as f32);
+                working = 0.0;
+            }
+        }
+        samples.push(working / self.ctx.input.channels() as f32);
 
         while samples.len() >= self.fft_size {
             let mut buf = Vec::with_capacity(self.fft_size);

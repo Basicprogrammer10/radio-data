@@ -18,3 +18,7 @@
 - [ ] Generate other data types with TRNG module
 - [ ] Add more TRNG tests ([source](https://www.random.org/analysis/Analysis2005.pdf))
 - [x] Input and output gain control
+- [ ] Spectrum Analyzer audio pass-through
+- [ ] Support multiple channels in all modules
+  - [ ] DTMF Receiver
+  - [ ] Export to function
