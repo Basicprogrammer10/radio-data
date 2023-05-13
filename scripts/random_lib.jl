@@ -1,3 +1,4 @@
+using Formatting
 using HTTP, JSON
 
 HOST = "http://localhost:8080"
@@ -10,6 +11,7 @@ function get_buffer()
     buffer_filled = body["buffer_filled"]
     percent_filled = body["percent_filled"]
     println("[*] Buffer filled: $buffer_filled ($(percent_filled * 100)%)")
+    printfmtln("[*] Buffer filled: {} ({:.1}%)", buffer_filled, percent_filled * 100)
 
     if percent_filled < 1.0
         println(" | Buffer not filled, waiting...")
