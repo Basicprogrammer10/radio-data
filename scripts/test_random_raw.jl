@@ -1,7 +1,7 @@
 using Plots, SpecialFunctions, Crayons
 include("random_lib.jl")
 
-BUFFER_SIZE = 10_000 # missing
+BUFFER_SIZE = missing
 
 function bit_vec(values::Array{UInt8})
     bits = falses(length(values) * 8)

@@ -7,7 +7,8 @@ use cpal::{
 };
 
 use crate::modules::{
-    dtmf_receive, dtmf_send, range_test, spectrum_analyzer, true_random, InitContext, Module,
+    dtmf_receive, dtmf_send, morse_code, range_test, spectrum_analyzer, true_random, InitContext,
+    Module,
 };
 
 type BoxedModule = Box<Arc<dyn Module + Send + Sync + 'static>>;
@@ -116,6 +117,30 @@ pub fn parse_args() -> ArgMatches {
                         .value_parser(value_parser!(usize))
                         .default_value("1024"),
                 ),
+            Command::new("morse-code")
+                .alias("morse")
+                .alias("m")
+                .about("Transmits text using morse code")
+                .arg(
+                    Arg::new("dit")
+                        .short('d')
+                        .help("The length of a dit in milliseconds.")
+                        .value_parser(value_parser!(u64))
+                        .default_value("100"),
+                )
+                .arg(
+                    Arg::new("frequency")
+                        .short('f')
+                        .help("The frequency to transmit at.")
+                        .value_parser(value_parser!(f32))
+                        .default_value("1000"),
+                )
+                .arg(
+                    Arg::new("text")
+                        .help("The text to transmit")
+                        .required(true)
+                        .index(1),
+                ),
         ])
         .get_matches()
 }
@@ -141,6 +166,7 @@ pub fn get_module(
         Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
         Some(("spectrum", m)) => Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m))),
         Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m))),
+        Some(("morse-code", m)) => Box::new(morse_code::MorseCode::new(ic(m))),
         _ => panic!("Invalid Subcommand"),
     }
 }

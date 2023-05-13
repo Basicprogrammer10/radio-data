@@ -2,8 +2,16 @@
 
 ## Modules
 
-- [ ] Morse Code
-- [ ] Binary Data Transmission
+- [ ] Morse Code &mdash;
+      [Reference](https://en.wikipedia.org/wiki/Morse_code) on Wikipedia.
+      The duration of a dash is three times that of a dot.
+      Each character is separated by a space of duration equal to that of a dot.
+      Spaces are represented by a space of duration equal to three times that of a dot.
+      Using command line args the user will be able to specify the duration of a dot, and the frequency of the tone.
+  - [ ] Module + Interface
+  - [ ] Data Transmission
+  - [ ] Data Reception
+- [ ] Binary Data Transmission &mdash; ill worry about this later
 
 ## Misc
 

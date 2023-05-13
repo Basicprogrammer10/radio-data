@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 afire = { version = "2.1.0", default-features = false, features = ["tracing"] }
+anyhow = "1.0.71"
 bitvec = "1.0.1"
 clap = "4.1.13"
 cpal = "0.15.1"
