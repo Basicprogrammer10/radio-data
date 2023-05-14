@@ -5,21 +5,28 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use crate::coding::morse::MorseEncoder;
+use crate::{
+    coding::morse::MorseEncoder,
+    modules::{InitContext, Module},
+};
 
-use super::{InitContext, Module};
-
-pub struct MorseCode {
+pub struct MorseSend {
     ctx: InitContext,
     encoder: Mutex<MorseEncoder>,
 }
 
-impl MorseCode {
+impl MorseSend {
     pub fn new(ctx: InitContext) -> Arc<Self> {
         // Load command line arguments
         let dit = *ctx.args.get_one::<u64>("dit").unwrap();
         let frequency = *ctx.args.get_one::<f32>("frequency").unwrap();
-        let text = ctx.args.get_one::<String>("text").unwrap();
+        let text = ctx
+            .args
+            .subcommand()
+            .unwrap()
+            .1
+            .get_one::<String>("text")
+            .unwrap();
 
         // Create the morse encoder and add the data
         let mut encoder = MorseEncoder::new(ctx.sample_rate(), frequency, dit);
@@ -32,7 +39,7 @@ impl MorseCode {
     }
 }
 
-impl Module for MorseCode {
+impl Module for MorseSend {
     fn name(&self) -> &'static str {
         "morse-code"
     }

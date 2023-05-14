@@ -7,9 +7,8 @@ use cpal::{InputCallbackInfo, OutputCallbackInfo, SupportedStreamConfig};
 
 use crate::misc::SampleRate;
 
-pub mod dtmf_receive;
-pub mod dtmf_send;
-pub mod morse_code;
+pub mod dtmf;
+pub mod morse;
 pub mod range_test;
 pub mod spectrum_analyzer;
 pub mod true_random;

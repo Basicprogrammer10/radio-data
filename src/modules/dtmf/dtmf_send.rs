@@ -8,9 +8,8 @@ use parking_lot::Mutex;
 use crate::{
     audio::tone::Tone,
     coding::dtmf::{self, DtmfEncoder},
+    modules::{InitContext, Module},
 };
-
-use super::{InitContext, Module};
 
 pub struct DtmfSend {
     ctx: InitContext,

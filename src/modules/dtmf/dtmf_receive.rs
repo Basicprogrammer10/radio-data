@@ -7,9 +7,8 @@ use parking_lot::Mutex;
 use crate::{
     coding::dtmf::{self, DtmfDecoder},
     consts::DTMF_CHUNK,
+    modules::{InitContext, Module},
 };
-
-use super::{InitContext, Module};
 
 pub struct DtmfReceive {
     ctx: InitContext,

@@ -1,8 +1,11 @@
 //! Morse code encoding and decoding of text.
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Instant};
 
-use crate::{audio::tone::SmoothTone, misc::SampleRate};
+use crate::{
+    audio::{algorithms::goertzel_mag, tone::SmoothTone},
+    misc::SampleRate,
+};
 
 /// Encodes text into morse code.
 pub struct MorseEncoder {
@@ -12,6 +15,16 @@ pub struct MorseEncoder {
     tone: SmoothTone,
     data: VecDeque<Morse>,
     state: EncodeState,
+}
+
+pub struct MorseDecoder {
+    sample_rate: SampleRate,
+    dit_length: u64,
+    frequency: f32,
+
+    data: Vec<Morse>,
+    last_timestamp: Instant,
+    callback: Box<dyn FnMut(&char) + Send + Sync + 'static>,
 }
 
 /// The different symbols that can be encoded in morse code.
@@ -91,6 +104,30 @@ impl MorseEncoder {
         }
 
         false
+    }
+}
+
+impl MorseDecoder {
+    pub fn new(
+        sample_rate: SampleRate,
+        frequency: f32,
+        dit_length: u64,
+        callback: impl FnMut(&char) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            sample_rate,
+            frequency,
+            dit_length,
+
+            data: Vec::new(),
+            last_timestamp: Instant::now(),
+            callback: Box::new(callback),
+        }
+    }
+
+    pub fn process(&mut self, data: &[f32]) {
+        let delta = goertzel_mag(self.frequency, data, self.sample_rate.input);
+        println!("{delta:.1} == {}", if delta < 0.05 { "OFF" } else { "ON" });
     }
 }
 

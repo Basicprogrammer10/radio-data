@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 use cpal::traits::{DeviceTrait, StreamTrait};
 
 use crate::audio::devices::get_devices;

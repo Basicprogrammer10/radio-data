@@ -9,8 +9,9 @@ use cpal::{
 };
 
 use crate::modules::{
-    dtmf_receive, dtmf_send, morse_code, range_test, spectrum_analyzer, true_random, InitContext,
-    Module,
+    dtmf::{dtmf_receive, dtmf_send},
+    morse::{morse_receive, morse_send},
+    range_test, spectrum_analyzer, true_random, InitContext, Module,
 };
 
 /// Object-safe module type
@@ -131,6 +132,7 @@ pub fn parse_args() -> ArgMatches {
                 .alias("morse")
                 .alias("m")
                 .about("Transmits text using morse code")
+                .subcommand_required(true)
                 .arg(
                     Arg::new("dit")
                         .short('d')
@@ -145,12 +147,15 @@ pub fn parse_args() -> ArgMatches {
                         .value_parser(value_parser!(f32))
                         .default_value("1000"),
                 )
-                .arg(
-                    Arg::new("text")
-                        .help("The text to transmit")
-                        .required(true)
-                        .index(1),
-                ),
+                .subcommands([
+                    Command::new("send").alias("s").arg(
+                        Arg::new("text")
+                            .help("The text to transmit")
+                            .required(true)
+                            .index(1),
+                    ),
+                    Command::new("receive").alias("r"),
+                ]),
         ])
         .get_matches()
 }
@@ -177,7 +182,11 @@ pub fn get_module(
         Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
         Some(("spectrum", m)) => Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m))),
         Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m))),
-        Some(("morse-code", m)) => Box::new(morse_code::MorseCode::new(ic(m))),
+        Some(("morse-code", m)) => match m.subcommand() {
+            Some(("send", _)) => Box::new(morse_send::MorseSend::new(ic(m))),
+            Some(("receive", _)) => Box::new(morse_receive::MorseReceive::new(ic(m))),
+            _ => panic!("Invalid Subcommand"),
+        },
         _ => panic!("Invalid Subcommand"),
     }
 }
