@@ -25,3 +25,5 @@
   - [x] Other modules
   - [ ] DTMF Receiver
   - [ ] Export to function
+- [ ] Allow using SmoothTones in the sequencer
+- [x] Add documentation to all modules

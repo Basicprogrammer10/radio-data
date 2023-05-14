@@ -1,5 +1,3 @@
-//! # Range Test
-//!
 //! Lets you test the range if your radio system.
 //! If it receives the DTMF tones defined in the const below,
 //! it will play back a tone.
@@ -32,17 +30,21 @@ impl RangeTest {
             history: Mutex::new(Vec::new()),
         });
 
+        // Create a new DTMF decoder and set its callback to self.callback
         let this = out.clone();
-        *out.dtmf.lock() = Some(DtmfDecoder::new(sr, move |x| this.callback(x)));
+        *out.dtmf.lock() = Some(DtmfDecoder::new(sr, move |x| this.callback(x as char)));
 
         out
     }
 
     fn callback(&self, chr: char) {
+        // Print the raw DTMF character and add it to a history buffer
         println!("[*] Got code: {chr}");
         let mut history = self.history.lock();
         history.push(chr as u8);
 
+        // If the history is long enough, check if the last few bytes match the code
+        // If so play a tone (440Hz for 5 seconds) and clear the history
         if history.len() >= CODE.len() && &history[history.len() - CODE.len()..] == CODE {
             println!("GOT CODE");
             let sr = self.ctx.sample_rate();
@@ -58,6 +60,7 @@ impl Module for RangeTest {
     }
 
     fn input(&self, input: &[f32]) {
+        // Add samples from the first channel to the work buffer
         let mut work = self.work.lock();
         work.extend(
             input
@@ -67,6 +70,7 @@ impl Module for RangeTest {
                 .map(|x| *x.1),
         );
 
+        // If the buffer is long enough, process it with the DTMF decoder
         for _ in 0..work.len() / DTMF_CHUNK {
             let chunk = work.drain(..DTMF_CHUNK).collect::<Vec<_>>();
             self.dtmf.lock().as_mut().unwrap().process(&chunk);
@@ -74,9 +78,10 @@ impl Module for RangeTest {
     }
 
     fn output(&self, output: &mut [f32]) {
+        // If the tone is playing, send it to the output
         let mut tone = self.tone.lock();
-
         let mut last = 0.0;
+
         for (i, e) in output.iter_mut().enumerate() {
             if i % self.ctx.output.channels() as usize == 0 {
                 last = tone.next().unwrap_or(0.);

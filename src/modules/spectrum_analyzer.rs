@@ -1,10 +1,12 @@
 //! Spectrum analyzer module that uses the terminal.
 //!
 //! For future reference:
-//! - https://phip1611.de/blog/frequency-spectrum-analysis-with-fft-in-rust/
-//! - https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
-//! - https://www.youtube.com/watch?v=dCeHOf4cJE0
-//! - https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html
+//! - <https://phip1611.de/blog/frequency-spectrum-analysis-with-fft-in-rust/>
+//! - <https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf>
+//! - <https://www.youtube.com/watch?v=dCeHOf4cJE0>
+//! - <https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html>
+
+// yikes this is a very long file :sweat_smile:
 
 use std::{
     collections::VecDeque,
@@ -51,6 +53,9 @@ pub struct SpectrumAnalyzer {
     last_samples: Mutex<Option<Vec<f32>>>,
 }
 
+/// Used to pass audio from the input to the output.
+/// Useful if you want to hear the audio while analyzing it.
+/// Note: The buffers are Vecs of VecDeques because they are storing the samples of each channel individually.
 struct PassThrough {
     ctx: InitContext,
     resample_size: usize,
@@ -61,6 +66,7 @@ struct PassThrough {
 
 impl SpectrumAnalyzer {
     pub fn new(ctx: InitContext) -> Arc<Self> {
+        // Load command line arguments
         let fft_size = *ctx.args.get_one("fft-size").unwrap();
         let display_range = ctx
             .args
@@ -70,7 +76,7 @@ impl SpectrumAnalyzer {
         let passthrough = ctx
             .args
             .get_flag("passthrough")
-            .then(|| Mutex::new(PassThrough::new(ctx.clone(), fft_size)));
+            .then(|| Mutex::new(PassThrough::new(ctx.clone(), 1024)));
 
         Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
@@ -86,8 +92,13 @@ impl SpectrumAnalyzer {
     }
 
     fn print_row(&self, data: Vec<f32>) {
-        self.handle_key_events();
+        // Handles terminal events like button presses and resizes
+        self.handle_events();
 
+        // To double the vertical resolution, we use a box drawing character (▀) that is half filled.
+        // This means by setting the foreground and background color to different values, we can draw more data on line.
+        // So we need to cache one line and when we get the next line, we can draw both.
+        // Here we add the new data to this cache if if is not full yet, otherwise we continue.
         let mut last_samples = self.last_samples.lock();
         if last_samples.is_none() {
             *last_samples = Some(data);
@@ -99,6 +110,7 @@ impl SpectrumAnalyzer {
         let bar_width = console_size.0 as usize / data.len();
         let points_per_char = data.len() as f32 / console_size.0 as f32;
 
+        // Setup the terminal and print the top line which has some stats
         queue!(
             stdout,
             terminal::ScrollUp(1),
@@ -108,6 +120,10 @@ impl SpectrumAnalyzer {
         )
         .unwrap();
 
+        // Init some vars for drawing the spectrum line.
+        // The way the spectrum is drawn is by figuring out how many FFT bins will need to be put in each char.
+        // Then we loop over the data and for each char we average the values of the bins that will be put in that char.
+        // Because the number of bins per char is not always an integer, we need to keep track of the error, so we can add it to the next char.
         let mut vals = Vec::new();
         let mut freq_labels = Vec::new();
         let mut error = 0.;
@@ -136,6 +152,7 @@ impl SpectrumAnalyzer {
             }
         }
 
+        // If we don't print a full line, we need to fill the rest with black.
         if console_size.0 as usize > full_size {
             queue!(
                 stdout,
@@ -146,6 +163,7 @@ impl SpectrumAnalyzer {
             .unwrap();
         }
 
+        // Prints the frequency labels on the bottom of the screen.
         queue!(stdout, style::ResetColor, cursor::MoveDown(1)).unwrap();
         let mut i = 0;
         while i < freq_labels.len() {
@@ -171,19 +189,22 @@ impl SpectrumAnalyzer {
         *last_samples = None;
     }
 
-    fn handle_key_events(&self) {
+    fn handle_events(&self) {
+        // Returns if there are no events to process
         let event = event::poll(Duration::ZERO).unwrap();
         if !event {
             return;
         }
 
         match event::read().unwrap() {
+            // Exit if escape is pressed
             event::Event::Key(e) => {
                 if e.code == KeyCode::Esc {
                     exit();
                     process::exit(0);
                 }
             }
+            // Clear the screen if the terminal is resized
             event::Event::Resize(..) => {
                 execute!(stdout(), terminal::Clear(terminal::ClearType::All)).unwrap()
             }
@@ -191,6 +212,12 @@ impl SpectrumAnalyzer {
         }
     }
 
+    /// Defines the top status line.
+    /// This line contains some stats about the current state of the program:
+    /// - FFT size &mdash; The number of samples that are used for each FFT.
+    /// - Domain &mdash; The frequency range that is currently displayed.
+    /// - BinRes &mdash; The frequency resolution of each FFT bin, derived from the FFT size and the sample rate.
+    /// - BinChars &mdash; The number of characters that are used to display each FFT bin, this is a product of the terminal width and the frequency resolution.
     fn top_line(&self, size: (u16, u16), points_per_char: f32) -> String {
         let start = "[RADIO-DATA SPECTRUM ANALYZER]";
         let end = format!(
@@ -212,8 +239,8 @@ impl SpectrumAnalyzer {
 }
 
 impl PassThrough {
-    fn new(ctx: InitContext, _fft_size: usize) -> Self {
-        let resample_size = 1024;
+    /// Creates a new pass-through
+    fn new(ctx: InitContext, resample_size: usize) -> Self {
         let channels = ctx.input.channels().min(ctx.output.channels()) as usize;
         let parameters = InterpolationParameters {
             sinc_len: 256,
@@ -223,6 +250,9 @@ impl PassThrough {
             window: WindowFunction::BlackmanHarris2,
         };
 
+        // Inits the resampler
+        // This is needed because the input and output sample rates are not always the same.
+        // So we have to resample the input to the output sample rate before writing it to the output.
         let resampler = SincFixedIn::new(
             (ctx.sample_rate().output / ctx.sample_rate().input) as f64,
             2.,
@@ -241,10 +271,13 @@ impl PassThrough {
         }
     }
 
+    /// Adds samples from the input to the buffer.
+    /// If the buffer is big enough, it will resample the samples and but them in the output buffer.
     fn add_samples(&mut self, samples: &[f32]) {
         let inp_channels = self.ctx.input.channels() as usize;
         let channels = self.buffer.len();
 
+        // Adds the samples to the buffer of the corresponding channel
         for (i, &e) in samples.iter().enumerate() {
             let channel = i % inp_channels;
             if channel >= channels {
@@ -254,6 +287,7 @@ impl PassThrough {
             self.buffer[channel].push_back(e);
         }
 
+        // Resamples the samples if the buffer is big enough
         while self.buffer.iter().map(|x| x.len()).max().unwrap_or(0) >= self.resample_size {
             let mut samples = vec![Vec::new(); channels];
             for _ in 0..self.resample_size {
@@ -269,6 +303,7 @@ impl PassThrough {
         }
     }
 
+    /// Writes the output to the output buffer.
     fn write_output(&mut self, output: &mut [f32]) {
         let out_channels = self.ctx.output.channels() as usize;
 
@@ -290,16 +325,21 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn init(&self) {
+        // Prints some info about the current state of the program
         println!("[I] FFT size: {}", self.fft_size);
         println!("[I] Display range: {:?}", self.display_range);
         println!("[I] Resolution: {}", nice_freq(self.resolution));
 
+        // Sets a panic hook
+        // This is important because the terminal will be in a weird state if the program panics
+        // and you wont be able to close the program.
         panic::set_hook(Box::new(|info| {
             exit();
             eprintln!("{info}");
             process::exit(0)
         }));
 
+        // Enables raw mode and enters the alternate screen
         terminal::enable_raw_mode().unwrap();
 
         let height = terminal::size().unwrap().1;
@@ -314,13 +354,16 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn input(&self, input: &[f32]) {
+        // Add the buffer to the pass-through
         if let Some(i) = &self.passthrough {
             i.lock().add_samples(input);
         }
 
+        // Adds the samples to a buffer
         let mut samples = self.samples.lock();
         samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
 
+        // Averages the samples if the input has more than one channel
         let mut working = 0.0;
         for (i, e) in input.iter().enumerate() {
             working += e;
@@ -332,19 +375,24 @@ impl Module for SpectrumAnalyzer {
         }
         samples.push(working / self.ctx.input.channels() as f32);
 
+        // If the buffer is big enough, it will process it
         while samples.len() >= self.fft_size {
+            // Converts the samples to complex numbers for the FFT
             let mut buf = Vec::with_capacity(self.fft_size);
             for i in samples.drain(..self.fft_size) {
                 buf.push(Complex::new(i, 0.));
             }
 
+            // Run said FFT
             let fft = self.planner.lock().plan_fft_forward(self.fft_size);
             fft.process(&mut buf);
 
+            // Slice the buffer to the display range
             let sample_rate = self.ctx.sample_rate().input as usize;
             let start = self.display_range.start * self.fft_size / sample_rate;
             let end = self.display_range.end * self.fft_size / sample_rate;
 
+            // Call the above function to print the row
             self.print_row(hann_window(
                 &buf[start.max(0)..=end.min(buf.len() / 2)]
                     .iter()
@@ -355,12 +403,14 @@ impl Module for SpectrumAnalyzer {
     }
 
     fn output(&self, output: &mut [f32]) {
+        // Writes the output from the pass-through
         if let Some(i) = &self.passthrough {
             i.lock().write_output(output);
         }
     }
 }
 
+/// A window function that is used to reduce the amount of noise in the spectrum.
 fn hann_window(samples: &[f32]) -> Vec<f32> {
     let mut out = Vec::with_capacity(samples.len());
     for (i, e) in samples.iter().enumerate() {
@@ -372,6 +422,7 @@ fn hann_window(samples: &[f32]) -> Vec<f32> {
     out
 }
 
+/// Takes in a value between 0 and 1 and returns a color from the color scheme.
 fn color(val: f32) -> Color {
     let val = val.max(0.).min(1.);
     let sections = COLOR_SCHEME.len() - 2;
@@ -383,6 +434,9 @@ fn color(val: f32) -> Color {
     )
 }
 
+/// Takes in an array of values and returns a color based on the average of the values.
+/// A map function is also passed in to allow for picking different channels.
+/// This is used in the print_row function to get the color of the previous row and then the current row.
 fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
     let avg = vals.iter().map(map).sum::<f32>() / vals.len() as f32;
     let norm = 1. - E.powf(-avg);
@@ -390,6 +444,7 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
     color(norm)
 }
 
+/// Converts a frequency in Hz to a nice string with a unit.
 fn nice_freq(mut hz: f32) -> String {
     for i in FREQUENCY_UNITS {
         if hz < 1000. {
@@ -402,6 +457,7 @@ fn nice_freq(mut hz: f32) -> String {
     format!("{:.1}{}", hz, FREQUENCY_UNITS.last().unwrap())
 }
 
+/// Cleans up the terminal and disables raw mode before exiting.
 fn exit() {
     execute!(
         stdout(),
@@ -413,6 +469,7 @@ fn exit() {
     terminal::disable_raw_mode().unwrap();
 }
 
+/// RGB color
 #[derive(Copy, Clone)]
 struct Color {
     r: u8,
@@ -421,10 +478,12 @@ struct Color {
 }
 
 impl Color {
+    /// Creates a new color from RGB values
     const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
+    /// Creates a new color from a hex value (no alpha)
     const fn hex(hex: u32) -> Self {
         Self::new(
             ((hex >> 16) & 0xff) as u8,
@@ -433,6 +492,8 @@ impl Color {
         )
     }
 
+    /// Linearly interpolates between two colors.
+    /// Used in the above color function
     fn lerp(&self, other: &Self, t: f32) -> Self {
         Self::new(
             (self.r as f32 + (other.r as f32 - self.r as f32) * t) as u8,
@@ -442,6 +503,7 @@ impl Color {
     }
 }
 
+/// Converts a Color to a crossterm::style::Color
 impl From<Color> for style::Color {
     fn from(color: Color) -> Self {
         style::Color::Rgb {

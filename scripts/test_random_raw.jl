@@ -1,8 +1,12 @@
 using Plots, SpecialFunctions, Crayons
 include("random_lib.jl")
 
+# The number of bytes to load from the server
+# If missing, it will get the buffer size from the server
 BUFFER_SIZE = missing
 
+# Converts an array of bytes to an array of bits
+# Not bitpacked :sob:
 function bit_vec(values::Array{UInt8})
     bits = falses(length(values) * 8)
     for i in 1:length(values)
@@ -20,11 +24,13 @@ buffer_size = if BUFFER_SIZE === missing
 else
     BUFFER_SIZE
 end
+
+# Load the buffer
 buffer = load_buffer(buffer_size)
 println("[*] Buffer loaded")
 
 
-# Monobit Test
+# Monobit Test, used to check if the sequence is random
 bits = bit_vec(buffer)
 n = length(bits)
 

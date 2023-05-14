@@ -1,7 +1,10 @@
+//! Commodore Dataset like binary encoder / decoder.
+
 use std::f32::consts::PI;
 
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
+/// Commodore Dataset like binary encoder.
 pub struct BinEncoder {
     data: BitVec<u8, Lsb0>,
     index: usize,
@@ -9,6 +12,7 @@ pub struct BinEncoder {
 }
 
 impl BinEncoder {
+    /// Create a new encoder from a slice of bytes.
     pub fn _new(data: &[u8]) -> Self {
         let mut out = BitVec::new();
         data.iter().for_each(|x| out.extend(x.view_bits::<Lsb0>()));
@@ -20,6 +24,7 @@ impl BinEncoder {
         }
     }
 
+    /// Add data to the encoder.
     pub fn _add_data(&mut self, data: &[u8]) {
         data.iter()
             .for_each(|x| self.data.extend(x.view_bits::<Lsb0>()));
@@ -62,6 +67,7 @@ impl Iterator for BinEncoder {
     }
 }
 
+/// Commodore Dataset like binary decoder.
 pub struct _BinDecoder {
     i: usize,
     start: usize,
@@ -70,6 +76,7 @@ pub struct _BinDecoder {
 }
 
 impl _BinDecoder {
+    /// Create a new decoder.
     pub fn _new() -> Self {
         Self {
             i: 1,
@@ -79,6 +86,7 @@ impl _BinDecoder {
         }
     }
 
+    /// Adds a sample to the decoder.
     pub fn _add(&mut self, mut val: f32) {
         val += 0.1;
         if self.last.is_none() {
@@ -108,6 +116,7 @@ impl _BinDecoder {
         );
     }
 
+    /// Gets the decoded data as a byte vec.
     pub fn _done(self) -> Vec<u8> {
         self.data.into_vec()
     }

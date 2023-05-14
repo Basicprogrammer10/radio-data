@@ -4,6 +4,8 @@ using HTTP, JSON
 HOST = "http://localhost:8080"
 SLEEP_TIME = 3 # seconds
 
+# Waits for the buffer to be filled
+# When is it filled, it returns the buffer length
 function get_buffer()
     r = HTTP.get("$HOST/status")
     body = JSON.parse(String(r.body))
@@ -21,6 +23,7 @@ function get_buffer()
     return buffer_filled
 end
 
+# Actually loads the buffer into a byte array
 function load_buffer(x::Int)
     r = HTTP.get("$HOST/raw/$x")
     if r.status != 200
@@ -31,6 +34,7 @@ function load_buffer(x::Int)
     return r.body
 end
 
+# Gets a float between min and max from the server
 function get_float(min::Float64, max::Float64)
     r = HTTP.get("$HOST/data/number/$min/$max")
     if r.status != 200

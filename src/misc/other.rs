@@ -1,5 +1,10 @@
+//! Misc functions that aren't large enough to warrant their own file.
+
 use hashbrown::HashMap;
 
+/// Because dealing with sample rates ended up causing problems with mixing up the input and output sample rates, this struct holds both.
+/// Functions that need a sample rate will take this entire struct, and just use the input or output sample rate as needed.
+/// Sample rate is the number of samples per second.
 #[derive(Debug, Clone, Copy)]
 pub struct SampleRate {
     /// The number of samples per second in the **input stream**.
@@ -9,10 +14,12 @@ pub struct SampleRate {
 }
 
 impl SampleRate {
+    /// Create a new SampleRate struct with the given input and output sample rates.
     pub fn new(input: u32, output: u32) -> Self {
         Self { input, output }
     }
 
+    /// Create a new SampleRate struct, both the input and output sample rates will `hz`.
     pub fn from_hz(hz: u32) -> Self {
         Self::new(hz, hz)
     }
@@ -25,6 +32,7 @@ impl From<u32> for SampleRate {
 }
 
 pub trait Similarity {
+    /// Calculate the similarity between two strings.
     fn similarity(&self, other: &Self) -> f64;
 }
 
@@ -34,6 +42,7 @@ impl<T: AsRef<str>> Similarity for T {
     }
 }
 
+/// Uses the dice coefficient to calculate the similarity between two strings.
 pub fn similarity(str1: &str, str2: &str) -> f64 {
     let a = str1.replace(' ', "");
     let b = str2.replace(' ', "");

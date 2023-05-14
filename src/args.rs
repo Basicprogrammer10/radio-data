@@ -1,3 +1,5 @@
+//! Command line argument parsing
+
 use std::{num::ParseIntError, ops::Range, process, sync::Arc};
 
 use clap::{value_parser, Arg, ArgMatches, Command};
@@ -11,8 +13,10 @@ use crate::modules::{
     Module,
 };
 
+/// Object-safe module type
 type BoxedModule = Box<Arc<dyn Module + Send + Sync + 'static>>;
 
+/// Parse command line args
 pub fn parse_args() -> ArgMatches {
     Command::new("radio-data")
         .author("Connor Slade")
@@ -151,6 +155,7 @@ pub fn parse_args() -> ArgMatches {
         .get_matches()
 }
 
+/// Uses the args to pick the correct module and return it as a boxed trait object
 pub fn get_module(
     args: &ArgMatches,
     input: SupportedStreamConfig,
@@ -177,6 +182,7 @@ pub fn get_module(
     }
 }
 
+/// Prints out the audio host system and the available devices.
 fn devices() {
     let host = cpal::default_host();
     println!("[*] Using Host: {}", host.id().name());

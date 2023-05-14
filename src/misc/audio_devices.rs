@@ -1,3 +1,6 @@
+//! Contains the [`Devices`] struct and the [`get_devices`] function.
+//! Used at startup to pick the input and output devices.
+
 use clap::ArgMatches;
 use cpal::{
     traits::{DeviceTrait, HostTrait},
@@ -6,6 +9,8 @@ use cpal::{
 
 use super::Similarity;
 
+/// Information about the input and output devices being used.
+/// Holds the [`Device`] and [`SupportedStreamConfig`] struct from cpal and a gain value which is applied in the Module's [`crate::modules::Module::input_raw`] and [`crate::modules::Module::output_raw`] functions.
 pub struct Devices {
     pub input_device: Device,
     pub input_config: SupportedStreamConfig,
@@ -16,6 +21,8 @@ pub struct Devices {
     pub output_gain: f32,
 }
 
+/// Uses the command line flags (-i and -o) to pick the audio devices, returning a [`Devices`] struct.
+/// Note: The devices are picked by finding the device with the highest string similarity (dice coefficient) to the given name.
 pub fn get_devices(args: &ArgMatches) -> Devices {
     let host = cpal::default_host();
     let wanted_output_device = args

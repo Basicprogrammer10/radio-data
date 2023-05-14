@@ -1,3 +1,6 @@
+//! Iterator that repeats each value a given number of times
+
+/// Iterator that repeats each value a given number of times
 pub struct ValueRepeat<I: Iterator> {
     iter: I,
     val: Option<<I as Iterator>::Item>,
@@ -6,6 +9,7 @@ pub struct ValueRepeat<I: Iterator> {
 }
 
 impl<I: Iterator> ValueRepeat<I> {
+    /// Create a new ValueRepeat iterator, taking in a number of repetitions and an iterator.
     pub fn new(mut reps: usize, iter: I) -> Self {
         reps -= 1;
         Self {
@@ -40,6 +44,7 @@ trait IntoValueRepeat<I>
 where
     I: Iterator,
 {
+    /// Converts an Iterator into a ValueRepeat iterator.
     fn repeat(self, rep: usize) -> ValueRepeat<I>;
 }
 

@@ -1,5 +1,9 @@
+//! Simple buffered writer.
+
 use std::io::Write;
 
+/// Buffered writer.
+/// Wont flush automatically, you will need to call `flush` manually.
 pub struct BufWriter<T: Write> {
     inner: T,
     buf: Vec<u8>,

@@ -1,7 +1,10 @@
+//! Morse code encoding and decoding of text.
+
 use std::collections::VecDeque;
 
 use crate::{audio::tone::SmoothTone, misc::SampleRate};
 
+/// Encodes text into morse code.
 pub struct MorseEncoder {
     sample_rate: SampleRate,
     dit_length: u64,
@@ -11,6 +14,12 @@ pub struct MorseEncoder {
     state: EncodeState,
 }
 
+/// The different symbols that can be encoded in morse code.
+/// - A Dah is three times the length of a Dit.
+/// - A space is the length of a Dit.
+/// - A word space is the length of a 7 Dits.
+///
+/// (usually)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Morse {
     /// The smallest unit of time in morse code
@@ -23,6 +32,8 @@ enum Morse {
     WordSpace,
 }
 
+/// The state of the encoder, either in the middle of sending a symbol, waiting a specified delay between symbols, or idle.
+/// Idle means the encoder has no more data to send, and is waiting for more.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EncodeState {
     /// Currently sending morse encoded data
@@ -33,6 +44,7 @@ enum EncodeState {
     Idle,
 }
 
+/// If the encoder state is Sending, this is the state of the current symbol sending operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SendState {
     data: Morse,
@@ -40,6 +52,8 @@ struct SendState {
 }
 
 impl MorseEncoder {
+    /// Create a new encoder with the specified sample rate, frequency, and dit length.
+    /// The other symbol lengths are derived from the dit length.
     pub fn new(sample_rate: SampleRate, frequency: f32, dit_length: u64) -> Self {
         Self {
             sample_rate,
@@ -50,6 +64,7 @@ impl MorseEncoder {
         }
     }
 
+    /// Add text data to the encoder.
     pub fn add_data(&mut self, data: &str) -> anyhow::Result<()> {
         self.data.extend(&Morse::from_str(data)?);
         if self.state == EncodeState::Idle {
@@ -115,6 +130,8 @@ impl Iterator for MorseEncoder {
 }
 
 impl Morse {
+    /// Converts a string into a vector of morse code symbols.
+    /// Will return an error if the string contains invalid characters.
     fn from_str(s: &str) -> anyhow::Result<Vec<Self>> {
         let mut result = Vec::new();
         for c in s.chars() {
@@ -163,6 +180,7 @@ impl Morse {
 }
 
 use Morse::*;
+/// Maps characters to their morse code representation
 const MORSE_ENCODING: [(char, &[Morse]); 57] = [
     ('A', &[Dit, Dah]),
     ('B', &[Dah, Dit, Dit, Dit]),
