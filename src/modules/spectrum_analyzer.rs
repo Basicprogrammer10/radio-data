@@ -110,12 +110,22 @@ impl SpectrumAnalyzer {
         let bar_width = console_size.0 as usize / data.len();
         let points_per_char = data.len() as f32 / console_size.0 as f32;
 
+        // Calculate the Root Mean Square (RMS) value of the data.
+        // This is shown in the top bar
+        let mut rms = 0.0;
+        let mut n = 0;
+        for i in data.iter().chain(last_samples.as_ref().unwrap().iter()) {
+            rms += i * i;
+            n += 1;
+        }
+        rms = (rms / n as f32).sqrt();
+
         // Setup the terminal and print the top line which has some stats
         queue!(
             stdout,
             terminal::ScrollUp(1),
             cursor::MoveTo(0, 0),
-            style::Print(self.top_line(console_size, points_per_char)),
+            style::Print(self.top_line(console_size, points_per_char, rms)),
             cursor::MoveTo(0, console_size.1.saturating_sub(2)),
         )
         .unwrap();
@@ -218,15 +228,17 @@ impl SpectrumAnalyzer {
     /// - Domain &mdash; The frequency range that is currently displayed.
     /// - BinRes &mdash; The frequency resolution of each FFT bin, derived from the FFT size and the sample rate.
     /// - BinChars &mdash; The number of characters that are used to display each FFT bin, this is a product of the terminal width and the frequency resolution.
-    fn top_line(&self, size: (u16, u16), points_per_char: f32) -> String {
+    /// - RMS &mdash; The Root Mean Square value of the current FFT data.
+    fn top_line(&self, size: (u16, u16), points_per_char: f32, rms: f32) -> String {
         let start = "[RADIO-DATA SPECTRUM ANALYZER]";
         let end = format!(
-            "{{FFT size: {}, Domain: {}..{}, BinRes: {}, BinChars: {:.1}}} [ESC: Quit]",
+            "{{FFT size: {}, Domain: {}..{}, BinRes: {}, BinChars: {:.1}, RMS: {:.1}}} [ESC: Quit]",
             self.fft_size,
             nice_freq(self.display_range.start as f32),
             nice_freq(self.display_range.end as f32),
             nice_freq(self.resolution),
-            points_per_char
+            points_per_char,
+            rms
         );
 
         let diff = (size.0 as usize).saturating_sub(start.len() + end.len());

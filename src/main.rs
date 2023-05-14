@@ -3,7 +3,7 @@ use cpal::traits::{DeviceTrait, StreamTrait};
 use misc::audio_devices::get_devices;
 
 mod args;
-mod audio;
+pub mod audio;
 mod coding;
 mod consts;
 mod misc;

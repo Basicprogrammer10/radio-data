@@ -60,3 +60,9 @@ impl Iterator for Sequence {
         self.next()
     }
 }
+
+impl Default for Sequence {
+    fn default() -> Self {
+        Self::new()
+    }
+}

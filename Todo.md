@@ -27,3 +27,4 @@
   - [ ] Export to function
 - [ ] Allow using SmoothTones in the sequencer
 - [x] Add documentation to all modules
+- [x] Show RMS in the spectrum analyzer
