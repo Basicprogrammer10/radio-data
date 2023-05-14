@@ -1,12 +1,15 @@
 use std::collections::VecDeque;
 
-use crate::{audio::tone::Tone, misc::SampleRate};
+use crate::{
+    audio::tone::{SmoothTone, Tone},
+    misc::SampleRate,
+};
 
 pub struct MorseEncoder {
     sample_rate: SampleRate,
     dit_length: u64,
 
-    tone: Tone,
+    tone: SmoothTone,
     data: VecDeque<Morse>,
     state: EncodeState,
 }
@@ -42,7 +45,7 @@ impl MorseEncoder {
         Self {
             sample_rate,
             dit_length,
-            tone: Tone::new(frequency, sample_rate),
+            tone: SmoothTone::new(frequency, sample_rate, 0.0),
             data: VecDeque::new(),
             state: EncodeState::Idle,
         }
@@ -60,9 +63,14 @@ impl MorseEncoder {
     /// Tries to advance to the next Morse symbol, returns true if it was able to
     fn try_advance(&mut self) -> bool {
         if let Some(i) = self.data.pop_front() {
+            let duration = i.duration(self.dit_length);
+
+            self.tone.reset();
+            self.tone = self.tone.duration(duration as f32 / 1000.0);
+
             self.state = EncodeState::Sending(SendState {
                 data: i,
-                time: i.duration(self.dit_length) * self.sample_rate.output as u64 / 1000,
+                time: duration * self.sample_rate.output as u64 / 1000,
             });
 
             return true;
@@ -92,9 +100,8 @@ impl Iterator for MorseEncoder {
         };
 
         if sending.time == 0 {
-            self.tone.reset();
             self.state =
-                EncodeState::Waiting(self.dit_length * 3 * self.sample_rate.output as u64 / 1000);
+                EncodeState::Waiting(self.dit_length * self.sample_rate.output as u64 / 1000);
             return Some(0.0);
         }
 
@@ -149,8 +156,8 @@ impl Morse {
     fn duration(&self, dit_length: u64) -> u64 {
         match self {
             Self::Dit => dit_length,
-            Self::Space => dit_length / 2,
             Self::Dah => dit_length * 3,
+            Self::Space => dit_length * 3,
         }
     }
 }
@@ -174,7 +181,7 @@ const MORSE_ENCODING: [(char, &[Morse]); 57] = [
     ('O', &[Dah, Dah, Dah]),
     ('P', &[Dit, Dah, Dah, Dit]),
     ('Q', &[Dah, Dah, Dit, Dah]),
-    ('R', &[Dit, Dah]),
+    ('R', &[Dit, Dah, Dit]),
     ('S', &[Dit, Dit, Dit]),
     ('T', &[Dah]),
     ('U', &[Dit, Dit, Dah]),

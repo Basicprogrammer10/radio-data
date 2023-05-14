@@ -213,7 +213,6 @@ impl SpectrumAnalyzer {
 
 impl PassThrough {
     fn new(ctx: InitContext, fft_size: usize) -> Self {
-        let fft_size = 1024 * 4;
         let channels = ctx.input.channels().min(ctx.output.channels()) as usize;
         let parameters = InterpolationParameters {
             sinc_len: 256,

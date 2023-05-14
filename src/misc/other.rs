@@ -2,7 +2,9 @@ use hashbrown::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SampleRate {
+    /// The number of samples per second in the **input stream**.
     pub input: u32,
+    /// The number of samples per second in the **output stream**.
     pub output: u32,
 }
 
