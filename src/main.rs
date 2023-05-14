@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+//! Command-line ham radio utilities.
 
 use cpal::traits::{DeviceTrait, StreamTrait};
 

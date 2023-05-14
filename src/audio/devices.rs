@@ -12,12 +12,19 @@ use crate::misc::Similarity;
 /// Information about the input and output devices being used.
 /// Holds the [`Device`] and [`SupportedStreamConfig`] struct from cpal and a gain value which is applied in the Module's [`crate::modules::Module::input_raw`] and [`crate::modules::Module::output_raw`] functions.
 pub struct Devices {
+    /// cpal device for input
     pub input_device: Device,
+    /// clap stream config for input
     pub input_config: SupportedStreamConfig,
+    /// Input gain that should be applied to the input data before processing
     pub input_gain: f32,
 
+    /// cpal device for output
     pub output_device: Device,
+
+    /// clap stream config for output
     pub output_config: SupportedStreamConfig,
+    /// Output gain that should be applied to the output data after processing
     pub output_gain: f32,
 }
 
