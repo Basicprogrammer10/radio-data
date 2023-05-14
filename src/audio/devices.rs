@@ -7,7 +7,7 @@ use cpal::{
     Device, SupportedStreamConfig,
 };
 
-use super::Similarity;
+use crate::misc::Similarity;
 
 /// Information about the input and output devices being used.
 /// Holds the [`Device`] and [`SupportedStreamConfig`] struct from cpal and a gain value which is applied in the Module's [`crate::modules::Module::input_raw`] and [`crate::modules::Module::output_raw`] functions.

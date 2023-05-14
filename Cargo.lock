@@ -795,6 +795,7 @@ dependencies = [
  "cpal",
  "crossterm",
  "hashbrown 0.13.2",
+ "num-complex",
  "parking_lot",
  "rand",
  "rubato",

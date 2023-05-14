@@ -1,6 +1,6 @@
 use cpal::traits::{DeviceTrait, StreamTrait};
 
-use misc::audio_devices::get_devices;
+use crate::audio::devices::get_devices;
 
 mod args;
 pub mod audio;

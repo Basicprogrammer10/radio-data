@@ -1,11 +1,14 @@
 //! DTMF tone based binary encoder and decoder.
 //! The decoder is based on the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm), and as I am writing this comment, over a month after implementing this, I don't remember how it works.
 
-use std::{f32::consts::PI, time::Instant};
+use std::time::Instant;
 
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 
-use crate::{audio::tone::Tone, misc::SampleRate};
+use crate::{
+    audio::{algorithms::goertzel_mag, tone::Tone},
+    misc::SampleRate,
+};
 
 const COL: [f32; 4] = [1209.0, 1336.0, 1477.0, 1633.0];
 const ROW: [f32; 4] = [697.0, 770.0, 852.0, 941.0];
@@ -127,30 +130,6 @@ impl DtmfDecoder {
         (self.callback)(x);
         self.last = Some(x);
     }
-}
-
-/// Implements the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to find the magnitude of a frequency in a slice of samples.
-pub fn goertzel_mag(freq: f32, samples: &[f32], sample_rate: u32) -> f32 {
-    let k = (0.5 + (samples.len() as f32 * freq) / sample_rate as f32).floor();
-    let omega = (2.0 * PI * k) / samples.len() as f32;
-    let sin = omega.sin();
-    let cos = omega.cos();
-    let coeff = cos * 2.0;
-
-    let mut q0;
-    let mut q1 = 0.0;
-    let mut q2 = 0.0;
-
-    for i in samples {
-        q0 = coeff * q1 - q2 + i;
-        q2 = q1;
-        q1 = q0;
-    }
-
-    let real = q1 - q2 * cos;
-    let imag = q2 * sin;
-
-    (real.powi(2) + imag.powi(2)).sqrt()
 }
 
 /// Converts a slice of frequencies to a DTMF characters from [`VAL`].
