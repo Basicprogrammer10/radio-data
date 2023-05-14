@@ -193,7 +193,7 @@ fn devices() {
         let output = device.default_output_config().is_ok();
         println!(
             " {}─ {}{} {}",
-            if i == devices.len() - 1 { "└" } else { "├" },
+            if i + 1 == devices.len() { "└" } else { "├" },
             if input { "I" } else { "" },
             if output { "O" } else { "" },
             device.name().unwrap()

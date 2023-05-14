@@ -212,7 +212,8 @@ impl SpectrumAnalyzer {
 }
 
 impl PassThrough {
-    fn new(ctx: InitContext, fft_size: usize) -> Self {
+    fn new(ctx: InitContext, _fft_size: usize) -> Self {
+        let resample_size = 1024;
         let channels = ctx.input.channels().min(ctx.output.channels()) as usize;
         let parameters = InterpolationParameters {
             sinc_len: 256,
@@ -224,9 +225,9 @@ impl PassThrough {
 
         let resampler = SincFixedIn::new(
             (ctx.sample_rate().output / ctx.sample_rate().input) as f64,
-            4.,
+            2.,
             parameters,
-            fft_size,
+            resample_size,
             channels,
         )
         .unwrap();
@@ -234,7 +235,7 @@ impl PassThrough {
         Self {
             ctx,
             resampler,
-            resample_size: fft_size,
+            resample_size,
             buffer: vec![VecDeque::new(); channels],
             out_buffer: vec![VecDeque::new(); channels],
         }
@@ -243,20 +244,21 @@ impl PassThrough {
     fn add_samples(&mut self, samples: &[f32]) {
         let inp_channels = self.ctx.input.channels() as usize;
         let channels = self.buffer.len();
-        for (i, e) in samples
-            .iter()
-            .enumerate()
-            .filter(|x| x.0 % inp_channels <= channels)
-        {
-            let channel = i % self.ctx.input.channels() as usize;
-            self.buffer[channel].push_back(*e);
+
+        for (i, &e) in samples.iter().enumerate() {
+            let channel = i % inp_channels;
+            if channel >= channels {
+                continue;
+            }
+
+            self.buffer[channel].push_back(e);
         }
 
-        while self.buffer[0].len() >= self.resample_size {
+        while self.buffer.iter().map(|x| x.len()).max().unwrap_or(0) >= self.resample_size {
             let mut samples = vec![Vec::new(); channels];
             for _ in 0..self.resample_size {
-                for j in 0..channels {
-                    samples[j].push(self.buffer[j].remove(0).unwrap_or(0.0));
+                for (j, e) in samples.iter_mut().enumerate().take(channels) {
+                    e.push(self.buffer[j].pop_front().unwrap_or(0.0));
                 }
             }
 
@@ -271,7 +273,12 @@ impl PassThrough {
         let out_channels = self.ctx.output.channels() as usize;
 
         for (i, e) in output.iter_mut().enumerate() {
-            let channel = i % out_channels;
+            let channel = i % self.ctx.output.channels() as usize;
+            if channel >= out_channels {
+                *e = 0.0;
+                continue;
+            }
+
             *e = self.out_buffer[channel].pop_front().unwrap_or(0.0);
         }
     }

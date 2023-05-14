@@ -1,9 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{
-    audio::tone::{SmoothTone, Tone},
-    misc::SampleRate,
-};
+use crate::{audio::tone::SmoothTone, misc::SampleRate};
 
 pub struct MorseEncoder {
     sample_rate: SampleRate,
@@ -20,8 +17,10 @@ enum Morse {
     Dit,
     /// Three times the length of a dit
     Dah,
-    /// A space between words
+    /// A space between characters
     Space,
+    /// A space between words
+    WordSpace,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,7 +107,7 @@ impl Iterator for MorseEncoder {
         sending.time -= 1;
         let out = match sending.data {
             Morse::Dit | Morse::Dah => self.tone.next().unwrap(),
-            Morse::Space => 0.0,
+            Morse::Space | Morse::WordSpace => 0.0,
         };
 
         Some(out)
@@ -158,6 +157,7 @@ impl Morse {
             Self::Dit => dit_length,
             Self::Dah => dit_length * 3,
             Self::Space => dit_length * 3,
+            Self::WordSpace => dit_length * 7,
         }
     }
 }
@@ -220,5 +220,5 @@ const MORSE_ENCODING: [(char, &[Morse]); 57] = [
     ('@', &[Dit, Dah, Dah, Dit, Dah]),
     ('¿', &[Dit, Dit, Dah, Dit, Dah]),
     ('¡', &[Dah, Dah, Dit, Dit, Dit]),
-    (' ', &[Space]),
+    (' ', &[WordSpace]),
 ];

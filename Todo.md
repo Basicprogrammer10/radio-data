@@ -22,5 +22,6 @@
 - [x] Input and output gain control
 - [ ] Spectrum Analyzer audio pass-through
 - [ ] Support multiple channels in all modules
+  - [x] Other modules
   - [ ] DTMF Receiver
   - [ ] Export to function
