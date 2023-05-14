@@ -51,23 +51,28 @@ pub fn parse_args() -> ArgMatches {
         )
         .subcommands([
             Command::new("device")
-                .alias("d")
+                .alias("dev")
                 .about("Lists the available audio devices."),
             Command::new("range")
                 .alias("r")
                 .about("Lets you test the range of your radio system."),
-            Command::new("dtmf-send")
-                .alias("ds")
-                .about("Sends DTMF tones to the radio.")
-                .arg(
-                    Arg::new("data")
-                        .help("The data to send.")
-                        .required(true)
-                        .index(1),
-                ),
-            Command::new("dtmf-receive")
-                .alias("dr")
-                .about("Receives DTMF tones from the radio."),
+            Command::new("dtmf")
+                .alias("d")
+                .subcommand_required(true)
+                .subcommands([
+                    Command::new("send")
+                        .alias("s")
+                        .about("Sends DTMF tones to the radio.")
+                        .arg(
+                            Arg::new("data")
+                                .help("The data to send.")
+                                .required(true)
+                                .index(1),
+                        ),
+                    Command::new("receive")
+                        .alias("r")
+                        .about("Receives DTMF tones from the radio."),
+                ]),
             Command::new("spectrum")
                 .alias("s")
                 .about("Shows a spectrum analyzer in the terminal")
@@ -178,8 +183,11 @@ pub fn get_module(
             process::exit(0);
         }
         Some(("range", m)) => Box::new(range_test::RangeTest::new(ic(m))),
-        Some(("dtmf-send", m)) => Box::new(dtmf_send::DtmfSend::new(ic(m))),
-        Some(("dtmf-receive", m)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
+        Some(("dtmf", m)) => match m.subcommand() {
+            Some(("send", _)) => Box::new(dtmf_send::DtmfSend::new(ic(m))),
+            Some(("receive", _)) => Box::new(dtmf_receive::DtmfReceive::new(ic(m))),
+            _ => panic!("Invalid Subcommand"),
+        },
         Some(("spectrum", m)) => Box::new(spectrum_analyzer::SpectrumAnalyzer::new(ic(m))),
         Some(("true-random", m)) => Box::new(true_random::TrueRandom::new(ic(m))),
         Some(("morse-code", m)) => match m.subcommand() {

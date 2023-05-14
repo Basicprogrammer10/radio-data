@@ -33,7 +33,13 @@ impl DtmfSend {
         let sr = ctx.sample_rate();
 
         // Convert the data to DTMF
-        let to_send = ctx.args.get_one::<String>("data").unwrap();
+        let to_send = ctx
+            .args
+            .subcommand()
+            .unwrap()
+            .1
+            .get_one::<String>("data")
+            .unwrap();
         let mut to_send = dtmf::bin_to_dtmf(to_send.as_bytes());
 
         // Add the start and end codes
