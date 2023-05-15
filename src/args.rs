@@ -2,16 +2,20 @@
 
 use std::{num::ParseIntError, ops::Range, process, sync::Arc};
 
+use anyhow::Context;
 use clap::{value_parser, Arg, ArgMatches, Command};
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     SupportedStreamConfig,
 };
 
-use crate::modules::{
-    dtmf::{dtmf_receive, dtmf_send},
-    morse::{morse_receive, morse_send},
-    range_test, spectrum_analyzer, true_random, InitContext, Module,
+use crate::{
+    audio::windows::{self, Window},
+    modules::{
+        dtmf::{dtmf_receive, dtmf_send},
+        morse::{morse_receive, morse_send},
+        range_test, spectrum_analyzer, true_random, InitContext, Module,
+    },
 };
 
 /// Object-safe module type
@@ -94,6 +98,20 @@ pub fn parse_args() -> ArgMatches {
                             Ok::<Range<usize>, ParseIntError>(start..end)
                         })
                         .default_value("15..14000"),
+                )
+                .arg(
+                    Arg::new("window")
+                        .short('w')
+                        .help("The window function to use on the samples")
+                        .value_parser(|x: &str| {
+                            let window = windows::get_window(x).with_context(|| {
+                                format!("Must be: {}", windows::WINDOWS.join(", "))
+                            })?;
+                            Ok::<Arc<Box<dyn Window + Send + Sync + 'static>>, anyhow::Error>(
+                                Arc::new(window),
+                            )
+                        })
+                        .default_value("hann"),
                 )
                 .arg(
                     Arg::new("passthrough")

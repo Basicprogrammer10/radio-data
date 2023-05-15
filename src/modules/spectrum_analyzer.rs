@@ -10,7 +10,7 @@
 
 use std::{
     collections::VecDeque,
-    f32::consts::{E, PI},
+    f32::consts::E,
     io::{stdout, Write},
     ops::Range,
     panic, process,
@@ -27,10 +27,11 @@ use parking_lot::Mutex;
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use rustfft::{num_complex::Complex, FftPlanner};
 
-use crate::misc::buf_writer::BufWriter;
+use crate::{audio::windows::BoxedWindow, misc::buf_writer::BufWriter};
 
 use super::{InitContext, Module};
 
+const HALF_CHAR: &str = "▀";
 const FREQUENCY_UNITS: &[&str] = &["Hz", "kHz", "MHz", "GHz", "THz"];
 const COLOR_SCHEME: &[Color] = &[
     Color::hex(0x000000),
@@ -46,6 +47,7 @@ pub struct SpectrumAnalyzer {
     fft_size: usize,
     resolution: f32,
     display_range: Range<usize>,
+    window: Arc<BoxedWindow>,
 
     passthrough: Option<Mutex<PassThrough>>,
     planner: Mutex<FftPlanner<f32>>,
@@ -77,12 +79,18 @@ impl SpectrumAnalyzer {
             .args
             .get_flag("passthrough")
             .then(|| Mutex::new(PassThrough::new(ctx.clone(), 1024)));
+        let window = ctx
+            .args
+            .get_one::<Arc<BoxedWindow>>("window")
+            .unwrap()
+            .to_owned();
 
         Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
             ctx,
             fft_size,
             display_range,
+            window,
 
             passthrough,
             planner: Mutex::new(FftPlanner::<f32>::new()),
@@ -107,7 +115,7 @@ impl SpectrumAnalyzer {
 
         let mut stdout = BufWriter::new(stdout());
         let console_size = terminal::size().unwrap();
-        let bar_width = console_size.0 as usize / data.len();
+        let bar_width = (console_size.0 as usize / data.len()).max(1);
         let points_per_char = data.len() as f32 / console_size.0 as f32;
 
         // Calculate the Root Mean Square (RMS) value of the data.
@@ -143,13 +151,13 @@ impl SpectrumAnalyzer {
         for (i, e) in data.into_iter().zip(prev_data).enumerate() {
             vals.push(e);
 
-            if vals.len() as f32 + error >= points_per_char {
-                error = vals.len() as f32 + error - points_per_char;
+            let points = vals.len() as f32 + error;
+            if points >= points_per_char {
+                error = points - points_per_char;
                 freq_labels.push((full_size, self.index_to_freq(i)));
 
-                let width = if bar_width > 0 { bar_width } else { 1 };
-                let bar = "▀".repeat(width);
-                full_size += width;
+                let bar = HALF_CHAR.repeat(bar_width);
+                full_size += bar_width;
 
                 queue!(
                     stdout,
@@ -168,7 +176,7 @@ impl SpectrumAnalyzer {
                 stdout,
                 style::SetForegroundColor(COLOR_SCHEME[0].into()),
                 style::SetBackgroundColor(COLOR_SCHEME[0].into()),
-                style::Print("▀".repeat(console_size.0 as usize - full_size)),
+                style::Print(HALF_CHAR.repeat(console_size.0 as usize - full_size)),
             )
             .unwrap();
         }
@@ -404,13 +412,14 @@ impl Module for SpectrumAnalyzer {
             let start = self.display_range.start * self.fft_size / sample_rate;
             let end = self.display_range.end * self.fft_size / sample_rate;
 
+            // Normalize the complex numbers (r^2 + i^2)
+            let norm = buf[start.max(0)..=end.min(buf.len() / 2)]
+                .iter()
+                .map(|x| x.norm())
+                .collect::<Vec<_>>();
+
             // Call the above function to print the row
-            self.print_row(hann_window(
-                &buf[start.max(0)..=end.min(buf.len() / 2)]
-                    .iter()
-                    .map(|x| x.norm())
-                    .collect::<Vec<_>>(),
-            ));
+            self.print_row(self.window.window(&norm).into_owned());
         }
     }
 
@@ -422,21 +431,9 @@ impl Module for SpectrumAnalyzer {
     }
 }
 
-/// A window function that is used to reduce the amount of noise in the spectrum.
-fn hann_window(samples: &[f32]) -> Vec<f32> {
-    let mut out = Vec::with_capacity(samples.len());
-    for (i, e) in samples.iter().enumerate() {
-        let a = 2.0 * PI * i as f32;
-        let n = (a / samples.len() as f32).cos();
-        let m = 0.5 * (1.0 - n);
-        out.push(m * e)
-    }
-    out
-}
-
 /// Takes in a value between 0 and 1 and returns a color from the color scheme.
 fn color(val: f32) -> Color {
-    let val = val.max(0.).min(1.);
+    debug_assert!((0. ..=1.).contains(&val));
     let sections = COLOR_SCHEME.len() - 2;
     let section = (sections as f32 * val).floor() as usize;
 
@@ -460,13 +457,13 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
 fn nice_freq(mut hz: f32) -> String {
     for i in FREQUENCY_UNITS {
         if hz < 1000. {
-            return format!("{:.1}{}", hz, i);
+            return format!("{hz:.1}{i}");
         }
 
         hz /= 1000.;
     }
 
-    format!("{:.1}{}", hz, FREQUENCY_UNITS.last().unwrap())
+    format!("{hz:.1}{}", FREQUENCY_UNITS.last().unwrap())
 }
 
 /// Cleans up the terminal and disables raw mode before exiting.

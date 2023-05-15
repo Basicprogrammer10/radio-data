@@ -5,3 +5,4 @@ pub mod algorithms;
 pub mod devices;
 pub mod sequence;
 pub mod tone;
+pub mod windows;

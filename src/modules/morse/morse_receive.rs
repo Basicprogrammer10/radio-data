@@ -22,7 +22,7 @@ impl MorseReceive {
         let frequency = *ctx.args.get_one::<f32>("frequency").unwrap();
 
         // Create the morse decoder
-        let decoder = MorseDecoder::new(ctx.sample_rate(), frequency, dit, |c| println!("{}", c));
+        let decoder = MorseDecoder::new(ctx.sample_rate(), frequency, dit, |c| println!("{c}"));
 
         Arc::new(Self {
             ctx,
