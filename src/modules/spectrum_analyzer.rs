@@ -27,7 +27,10 @@ use parking_lot::Mutex;
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use rustfft::{num_complex::Complex, FftPlanner};
 
-use crate::{audio::windows::BoxedWindow, misc::buf_writer::BufWriter};
+use crate::{
+    audio::{algorithms::to_mono, windows::BoxedWindow},
+    misc::buf_writer::BufWriter,
+};
 
 use super::{InitContext, Module};
 
@@ -240,12 +243,12 @@ impl SpectrumAnalyzer {
     fn top_line(&self, size: (u16, u16), points_per_char: f32, rms: f32) -> String {
         let start = "[RADIO-DATA SPECTRUM ANALYZER]";
         let end = format!(
-            "{{FFT size: {}, Domain: {}..{}, BinRes: {}, BinChars: {:.1}, RMS: {:.1}}} [ESC: Quit]",
+            "{{FFT size: {}, Window: {}, Domain: {}..{}, Res: {:.1}, RMS: {:.1}}} [ESC: Quit]",
             self.fft_size,
+            self.window.name(),
             nice_freq(self.display_range.start as f32),
             nice_freq(self.display_range.end as f32),
-            nice_freq(self.resolution),
-            points_per_char,
+            nice_freq(self.resolution * points_per_char),
             rms
         );
 
@@ -274,7 +277,7 @@ impl PassThrough {
         // This is needed because the input and output sample rates are not always the same.
         // So we have to resample the input to the output sample rate before writing it to the output.
         let resampler = SincFixedIn::new(
-            (ctx.sample_rate().output / ctx.sample_rate().input) as f64,
+            ctx.sample_rate().output as f64 / ctx.sample_rate().input as f64,
             2.,
             parameters,
             resample_size,
@@ -316,7 +319,9 @@ impl PassThrough {
                 }
             }
 
+            // dbg!(samples[0].len());
             let out = self.resampler.process(&samples, None).unwrap();
+            // dbg!(out[0].len());
             for (i, e) in out.into_iter().enumerate() {
                 self.out_buffer[i].extend(e);
             }
@@ -382,18 +387,7 @@ impl Module for SpectrumAnalyzer {
         // Adds the samples to a buffer
         let mut samples = self.samples.lock();
         samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
-
-        // Averages the samples if the input has more than one channel
-        let mut working = 0.0;
-        for (i, e) in input.iter().enumerate() {
-            working += e;
-
-            if i != 0 && i % self.ctx.input.channels() as usize == 0 {
-                samples.push(working / self.ctx.input.channels() as f32);
-                working = 0.0;
-            }
-        }
-        samples.push(working / self.ctx.input.channels() as f32);
+        samples.extend(to_mono(input, self.ctx.input.channels() as usize));
 
         // If the buffer is big enough, it will process it
         while samples.len() >= self.fft_size {

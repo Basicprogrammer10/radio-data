@@ -1,3 +1,5 @@
+// todo: documentation
+
 use std::{borrow::Cow, f32::consts::PI};
 
 pub type BoxedWindow = Box<dyn Window + Send + Sync + 'static>;
@@ -5,6 +7,7 @@ pub type BoxedWindow = Box<dyn Window + Send + Sync + 'static>;
 pub const WINDOWS: &[&str] = &["square", "hann", "blackman"];
 
 pub trait Window {
+    fn name(&self) -> &'static str;
     fn window<'a>(&self, samples: &'a [f32]) -> Cow<'a, [f32]>;
 }
 
@@ -20,6 +23,10 @@ pub fn get_window(name: &str) -> Option<BoxedWindow> {
 pub struct SquareWindow;
 
 impl Window for SquareWindow {
+    fn name(&self) -> &'static str {
+        "square"
+    }
+
     fn window<'a>(&self, samples: &'a [f32]) -> Cow<'a, [f32]> {
         Cow::Borrowed(samples)
     }
@@ -28,6 +35,10 @@ impl Window for SquareWindow {
 pub struct HannWindow;
 
 impl Window for HannWindow {
+    fn name(&self) -> &'static str {
+        "hann"
+    }
+
     fn window<'a>(&self, samples: &'a [f32]) -> Cow<'a, [f32]> {
         let out = samples
             .iter()
@@ -46,6 +57,10 @@ impl Window for HannWindow {
 pub struct BlackmanNuttallWindow;
 
 impl Window for BlackmanNuttallWindow {
+    fn name(&self) -> &'static str {
+        "blackman"
+    }
+
     fn window<'a>(&self, samples: &'a [f32]) -> Cow<'a, [f32]> {
         const A0: f32 = 0.3635819;
         const A1: f32 = 0.4891775;

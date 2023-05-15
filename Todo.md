@@ -20,11 +20,11 @@
 - [ ] Generate other data types with TRNG module
 - [ ] Add more TRNG tests ([source](https://www.random.org/analysis/Analysis2005.pdf))
 - [x] Input and output gain control
-- [ ] Spectrum Analyzer audio pass-through
-- [ ] Support multiple channels in all modules
+- [x] Spectrum Analyzer audio pass-through
+- [x] Support multiple channels in all modules
   - [x] Other modules
-  - [ ] DTMF Receiver
-  - [ ] Export to function
+  - [x] DTMF Receiver
+  - [x] Export to function
 - [ ] Allow using SmoothTones in the sequencer
 - [x] Add documentation to all modules
 - [x] Show RMS in the spectrum analyzer

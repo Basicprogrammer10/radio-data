@@ -26,3 +26,21 @@ pub fn goertzel_mag(freq: f32, samples: &[f32], sample_rate: u32) -> f32 {
 
     Complex::new(real, imag).norm()
 }
+
+/// Converts a slice of samples, made of n interleaved channels, to a mono channel.
+/// This is done by averaging the samples of each channel.
+pub fn to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
+    let mut out = Vec::with_capacity(samples.len() / channels);
+
+    let mut sum = 0.0;
+    for (i, &e) in samples.iter().enumerate() {
+        sum += e;
+        if i != 0 && i % channels == 0 {
+            out.push(sum / channels as f32);
+            sum = 0.0;
+        }
+    }
+    out.push(sum / channels as f32);
+
+    out
+}
