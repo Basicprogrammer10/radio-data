@@ -7,6 +7,8 @@ use crate::{
     misc::SampleRate,
 };
 
+const MAGNITUDE_EPSILON: f32 = 0.05;
+
 /// Encodes text into morse code.
 pub struct MorseEncoder {
     sample_rate: SampleRate,
@@ -23,6 +25,7 @@ pub struct MorseDecoder {
     frequency: f32,
 
     data: Vec<Morse>,
+    state: bool,
     last_timestamp: Instant,
     callback: Box<dyn FnMut(&char) + Send + Sync + 'static>,
 }
@@ -40,9 +43,9 @@ enum Morse {
     /// Three times the length of a dit
     Dah,
     /// A space between characters
-    Space,
+    Gap,
     /// A space between words
-    WordSpace,
+    Space,
 }
 
 /// The state of the encoder, either in the middle of sending a symbol, waiting a specified delay between symbols, or idle.
@@ -120,14 +123,30 @@ impl MorseDecoder {
             dit_length,
 
             data: Vec::new(),
+            state: false,
             last_timestamp: Instant::now(),
             callback: Box::new(callback),
         }
     }
 
     pub fn process(&mut self, data: &[f32]) {
-        let delta = goertzel_mag(self.frequency, data, self.sample_rate.input);
-        println!("{delta:.1} == {}", if delta < 0.05 { "OFF" } else { "ON" });
+        let mag = goertzel_mag(self.frequency, data, self.sample_rate.input);
+        let val = mag > MAGNITUDE_EPSILON;
+
+        if val != self.state {
+            let duration = self.last_timestamp.elapsed().as_secs_f32();
+            self.last_timestamp = Instant::now();
+            self.state = val;
+
+            if !val {
+                self.data.push(Morse::Gap);
+                return;
+            }
+
+            if let Some(i) = dbg!(Morse::from_duration(duration, self.dit_length)) {
+                self.data.push(i);
+            }
+        }
     }
 }
 
@@ -159,7 +178,7 @@ impl Iterator for MorseEncoder {
         sending.time -= 1;
         let out = match sending.data {
             Morse::Dit | Morse::Dah => self.tone.next().unwrap(),
-            Morse::Space | Morse::WordSpace => 0.0,
+            Morse::Gap | Morse::Space => 0.0,
         };
 
         Some(out)
@@ -200,7 +219,7 @@ impl Morse {
             };
 
             result.extend_from_slice(MORSE_ENCODING[index as usize].1);
-            result.push(Morse::Space);
+            result.push(Morse::Gap);
         }
 
         Ok(result)
@@ -210,9 +229,20 @@ impl Morse {
         match self {
             Self::Dit => dit_length,
             Self::Dah => dit_length * 3,
-            Self::Space => dit_length * 3,
-            Self::WordSpace => dit_length * 7,
+            Self::Gap => dit_length * 3,
+            Self::Space => dit_length * 7,
         }
+    }
+
+    fn from_duration(duration: f32, dit_length: u64) -> Option<Self> {
+        for &i in [Self::Space, Self::Dah, Self::Dit].iter() {
+            let delta = i.duration(dit_length) as f32 / 1000. - duration;
+            if delta.abs() < 0.2 {
+                return Some(i);
+            }
+        }
+
+        None
     }
 }
 
@@ -275,5 +305,5 @@ const MORSE_ENCODING: [(char, &[Morse]); 57] = [
     ('@', &[Dit, Dah, Dah, Dit, Dah]),
     ('¿', &[Dit, Dit, Dah, Dit, Dah]),
     ('¡', &[Dah, Dah, Dit, Dit, Dit]),
-    (' ', &[WordSpace]),
+    (' ', &[Space]),
 ];
