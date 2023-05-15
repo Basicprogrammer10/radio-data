@@ -9,12 +9,16 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use super::{InitContext, Module};
-use crate::{audio::sequence::Sequence, coding::dtmf::DtmfDecoder, consts::DTMF_CHUNK};
+use crate::{
+    audio::{sequence::Sequence, tone::Tone},
+    coding::dtmf::DtmfDecoder,
+    consts::DTMF_CHUNK,
+};
 
 pub struct RangeTest {
     ctx: InitContext,
     dtmf: Mutex<Option<DtmfDecoder>>,
-    tone: Mutex<Sequence>,
+    tone: Mutex<Sequence<Tone>>,
     work: Mutex<Vec<f32>>,
     history: Mutex<Vec<u8>>,
 }

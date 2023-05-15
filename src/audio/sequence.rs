@@ -2,16 +2,21 @@
 
 use crate::misc::SampleRate;
 
-use super::tone::Tone;
+use super::tone::{SmoothTone, Tone};
 
 /// A sequence of tones.
 /// Will continue to the next tone when the current one is finished.
-pub struct Sequence {
-    tones: Vec<Tone>,
+pub struct Sequence<T: Sequenceable> {
+    tones: Vec<T>,
     index: usize,
 }
 
-impl Sequence {
+pub trait Sequenceable {
+    fn new(freq: f32, sample_rate: SampleRate, duration: usize) -> Self;
+    fn next(&mut self) -> Option<f32>;
+}
+
+impl<T: Sequenceable> Sequence<T> {
     /// Create a new empty sequence.
     pub fn new() -> Self {
         Self {
@@ -21,7 +26,7 @@ impl Sequence {
     }
 
     /// Add a tone to the sequence.
-    pub fn _chain(mut self, tone: Tone) -> Self {
+    pub fn _chain(mut self, tone: T) -> Self {
         self.tones.push(tone);
         self
     }
@@ -39,16 +44,18 @@ impl Sequence {
             let (freq, time) = i.split_once(';').unwrap();
             let freq = freq.parse::<f32>().unwrap();
             let time = time.parse::<f32>().unwrap();
-            tones.push(
-                Tone::new(freq, sample_rate).duration((sample_rate.output as f32 * time) as usize),
-            );
+            tones.push(T::new(
+                freq,
+                sample_rate,
+                (sample_rate.output as f32 * time) as usize,
+            ));
         }
 
         Self { tones, index: 0 }
     }
 }
 
-impl Iterator for Sequence {
+impl<T: Sequenceable> Iterator for Sequence<T> {
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -61,8 +68,32 @@ impl Iterator for Sequence {
     }
 }
 
-impl Default for Sequence {
+impl<T: Sequenceable> Default for Sequence<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Sequenceable for Tone {
+    fn new(freq: f32, sample_rate: SampleRate, duration: usize) -> Self {
+        Self::new(freq, sample_rate).duration(duration)
+    }
+
+    fn next(&mut self) -> Option<f32> {
+        Iterator::next(self)
+    }
+}
+
+impl Sequenceable for SmoothTone {
+    fn new(freq: f32, sample_rate: SampleRate, duration: usize) -> Self {
+        Self::new(
+            freq,
+            sample_rate,
+            duration as f32 / sample_rate.output as f32,
+        )
+    }
+
+    fn next(&mut self) -> Option<f32> {
+        Iterator::next(self)
     }
 }

@@ -77,7 +77,8 @@ impl SmoothTone {
     pub fn new(tone: f32, sample_rate: SampleRate, duration: f32) -> Self {
         let in_out = (tone.recip() * sample_rate.output as f32) as usize;
         Self {
-            inner: Tone::new(tone, sample_rate),
+            inner: Tone::new(tone, sample_rate)
+                .duration((duration * sample_rate.output as f32) as usize + 1),
             duration: (sample_rate.output as f32 * duration) as usize,
             in_point: in_out,
             out_point: in_out,
@@ -92,6 +93,7 @@ impl SmoothTone {
     /// Sets the duration of the tone in seconds.
     pub fn duration(mut self, duration: f32) -> Self {
         self.duration = (self.inner.sample_rate * duration) as usize;
+        self.inner.duration = Some(self.duration);
         self
     }
 
