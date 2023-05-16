@@ -15,6 +15,7 @@ use std::{
     ops::Range,
     panic, process,
     sync::Arc,
+    thread,
     time::Duration,
 };
 
@@ -56,6 +57,7 @@ pub struct SpectrumAnalyzer {
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
     last_samples: Mutex<Option<Vec<f32>>>,
+    this: Mutex<Option<Arc<SpectrumAnalyzer>>>,
 }
 
 /// Used to pass audio from the input to the output.
@@ -88,7 +90,7 @@ impl SpectrumAnalyzer {
             .unwrap()
             .to_owned();
 
-        Arc::new(Self {
+        let this = Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
             ctx,
             fft_size,
@@ -99,13 +101,14 @@ impl SpectrumAnalyzer {
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
             last_samples: Mutex::new(None),
-        })
+            this: Mutex::new(None),
+        });
+
+        this.this.lock().replace(this.clone());
+        this
     }
 
     fn print_row(&self, data: Vec<f32>) {
-        // Handles terminal events like button presses and resizes
-        self.handle_events();
-
         // To double the vertical resolution, we use a box drawing character (▀) that is half filled.
         // This means by setting the foreground and background color to different values, we can draw more data on line.
         // So we need to cache one line and when we get the next line, we can draw both.
@@ -384,37 +387,45 @@ impl Module for SpectrumAnalyzer {
             i.lock().add_samples(input);
         }
 
-        // Adds the samples to a buffer
-        let mut samples = self.samples.lock();
-        samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
-        samples.extend(to_mono(input, self.ctx.input.channels() as usize));
+        // Multithread to make sure the audio passthrough is never blocked
+        let input = input.to_vec();
+        let this = self.this.lock().clone().unwrap();
+        thread::spawn(move || {
+            // Adds the samples to a buffer
+            let mut samples = this.samples.lock();
+            samples.reserve(input.len() / this.ctx.input.channels() as usize + 1);
+            samples.extend(to_mono(&input, this.ctx.input.channels() as usize));
 
-        // If the buffer is big enough, it will process it
-        while samples.len() >= self.fft_size {
-            // Converts the samples to complex numbers for the FFT
-            let mut buf = Vec::with_capacity(self.fft_size);
-            for i in samples.drain(..self.fft_size) {
-                buf.push(Complex::new(i, 0.));
+            // If the buffer is big enough, it will process it
+            while samples.len() >= this.fft_size {
+                // Converts the samples to complex numbers for the FFT
+                let mut buf = Vec::with_capacity(this.fft_size);
+                for i in samples.drain(..this.fft_size) {
+                    buf.push(Complex::new(i, 0.));
+                }
+
+                // Run said FFT
+                let fft = this.planner.lock().plan_fft_forward(this.fft_size);
+                fft.process(&mut buf);
+
+                // Slice the buffer to the display range
+                let sample_rate = this.ctx.sample_rate().input as usize;
+                let start = this.display_range.start * this.fft_size / sample_rate;
+                let end = this.display_range.end * this.fft_size / sample_rate;
+
+                // Normalize the complex numbers (r^2 + i^2)
+                let norm = buf[start.max(0)..=end.min(buf.len() / 2)]
+                    .iter()
+                    .map(|x| x.norm())
+                    .collect::<Vec<_>>();
+
+                // Handles terminal events like button presses and resizes
+                this.handle_events();
+
+                // Call the above function to print the row
+                this.print_row(this.window.window(&norm).into_owned());
             }
-
-            // Run said FFT
-            let fft = self.planner.lock().plan_fft_forward(self.fft_size);
-            fft.process(&mut buf);
-
-            // Slice the buffer to the display range
-            let sample_rate = self.ctx.sample_rate().input as usize;
-            let start = self.display_range.start * self.fft_size / sample_rate;
-            let end = self.display_range.end * self.fft_size / sample_rate;
-
-            // Normalize the complex numbers (r^2 + i^2)
-            let norm = buf[start.max(0)..=end.min(buf.len() / 2)]
-                .iter()
-                .map(|x| x.norm())
-                .collect::<Vec<_>>();
-
-            // Call the above function to print the row
-            self.print_row(self.window.window(&norm).into_owned());
-        }
+        });
     }
 
     fn output(&self, output: &mut [f32]) {
