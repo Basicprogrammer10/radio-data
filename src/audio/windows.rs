@@ -1,16 +1,27 @@
-// todo: documentation
+//! Windowing functions ([wikipedia](https://en.wikipedia.org/wiki/Windowing_functions))
 
 use std::{borrow::Cow, f32::consts::PI};
 
+/// A boxed, thread safe Window trait object
 pub type BoxedWindow = Box<dyn Window + Send + Sync + 'static>;
 
+/// Different valid windows.
+/// This is only used in the command like error message
 pub const WINDOWS: &[&str] = &["square", "hann", "blackman"];
 
+/// Trait implemented by window functions.
+/// Takes in a slice of samples and outputs those same samples after being transformed
 pub trait Window {
+    /// Get the name of the window function.
+    /// Used in the info bat of the spectrum analyzer
     fn name(&self) -> &'static str;
+    /// The main method to run the windowing function
     fn window<'a>(&self, samples: &'a [f32]) -> Cow<'a, [f32]>;
 }
 
+/// Gets a windowing function by its name.
+/// Returns None if there is not one named `name`.
+/// Used in command like arg parsing
 pub fn get_window(name: &str) -> Option<BoxedWindow> {
     Some(match name.to_ascii_lowercase().as_str() {
         "s" | "square" => Box::new(SquareWindow),
@@ -20,6 +31,8 @@ pub fn get_window(name: &str) -> Option<BoxedWindow> {
     })
 }
 
+/// Basically does nothing.
+/// \[[Rectangular Window](https://en.wikipedia.org/wiki/Window_function#Rectangular_window)\]
 pub struct SquareWindow;
 
 impl Window for SquareWindow {
@@ -32,6 +45,8 @@ impl Window for SquareWindow {
     }
 }
 
+/// Hann windowing function.
+/// \[[Hann and Hamming Windows](https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows)\]
 pub struct HannWindow;
 
 impl Window for HannWindow {
@@ -54,6 +69,8 @@ impl Window for HannWindow {
     }
 }
 
+/// Blackman Nuttall windowing function.
+/// \[[Blackman Nuttall Window](https://en.wikipedia.org/wiki/Window_function#Blackman%E2%80%93Nuttall_window)\]
 pub struct BlackmanNuttallWindow;
 
 impl Window for BlackmanNuttallWindow {
