@@ -118,6 +118,13 @@ pub fn parse_args() -> ArgMatches {
                         .short('p')
                         .help("Pass the audio through to the output device.")
                         .num_args(0),
+                )
+                .arg(
+                    Arg::new("gain")
+                        .short('g')
+                        .help("The gain to apply display, does not affect the passthrough.")
+                        .value_parser(value_parser!(f32))
+                        .default_value("1.0"),
                 ),
             Command::new("true-random")
                 .alias("trng")

@@ -50,6 +50,7 @@ pub struct SpectrumAnalyzer {
     ctx: InitContext,
     fft_size: usize,
     resolution: f32,
+    gain: f32,
     display_range: Range<usize>,
     window: Arc<BoxedWindow>,
 
@@ -89,6 +90,7 @@ impl SpectrumAnalyzer {
             .get_one::<Arc<BoxedWindow>>("window")
             .unwrap()
             .to_owned();
+        let gain = *ctx.args.get_one("gain").unwrap();
 
         let this = Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
@@ -96,6 +98,7 @@ impl SpectrumAnalyzer {
             fft_size,
             display_range,
             window,
+            gain,
 
             passthrough,
             planner: Mutex::new(FftPlanner::<f32>::new()),
@@ -155,7 +158,7 @@ impl SpectrumAnalyzer {
 
         let prev_data = last_samples.as_ref().unwrap().iter().copied();
         for (i, e) in data.into_iter().zip(prev_data).enumerate() {
-            vals.push(e);
+            vals.push((e.0 * self.gain, e.1 * self.gain));
 
             let points = vals.len() as f32 + error;
             if points >= points_per_char {
@@ -240,17 +243,18 @@ impl SpectrumAnalyzer {
     /// This line contains some stats about the current state of the program:
     /// - FFT size &mdash; The number of samples that are used for each FFT.
     /// - Domain &mdash; The frequency range that is currently displayed.
-    /// - BinRes &mdash; The frequency resolution of each FFT bin, derived from the FFT size and the sample rate.
-    /// - BinChars &mdash; The number of characters that are used to display each FFT bin, this is a product of the terminal width and the frequency resolution.
+    /// - Gain &mdash; The gain that is applied to the data when displaying.
+    /// - Res &mdash; The frequency resolution of each character used to display the spectrum.
     /// - RMS &mdash; The Root Mean Square value of the current FFT data.
     fn top_line(&self, size: (u16, u16), points_per_char: f32, rms: f32) -> String {
         let start = "[RADIO-DATA SPECTRUM ANALYZER]";
         let end = format!(
-            "{{FFT size: {}, Window: {}, Domain: {}..{}, Res: {:.1}, RMS: {:.1}}} [ESC: Quit]",
+            "{{FFT size: {}, Window: {}, Domain: {}..{}, Gain: {:.1}, Res: {}, RMS: {:.1}}} [ESC: Quit]",
             self.fft_size,
             self.window.name(),
             nice_freq(self.display_range.start as f32),
             nice_freq(self.display_range.end as f32),
+            self.gain,
             nice_freq(self.resolution * points_per_char),
             rms
         );
