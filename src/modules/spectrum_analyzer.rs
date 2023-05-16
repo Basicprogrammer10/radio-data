@@ -398,13 +398,14 @@ impl Module for SpectrumAnalyzer {
 
             // If the buffer is big enough, it will process it
             while samples.len() >= this.fft_size {
-                // Converts the samples to complex numbers for the FFT
+                // Applies the windowing function and converts the samples to complex numbers
+                let samples = samples.drain(..this.fft_size);
                 let mut buf = Vec::with_capacity(this.fft_size);
-                for i in samples.drain(..this.fft_size) {
+                for &i in this.window.window(samples.as_slice()).iter() {
                     buf.push(Complex::new(i, 0.));
                 }
 
-                // Run said FFT
+                // Run the FFT
                 let fft = this.planner.lock().plan_fft_forward(this.fft_size);
                 fft.process(&mut buf);
 
@@ -423,7 +424,7 @@ impl Module for SpectrumAnalyzer {
                 this.handle_events();
 
                 // Call the above function to print the row
-                this.print_row(this.window.window(&norm).into_owned());
+                this.print_row(norm);
             }
         });
     }

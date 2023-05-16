@@ -25,7 +25,8 @@
   - [x] Other modules
   - [x] DTMF Receiver
   - [x] Export to function
-- [ ] Allow using SmoothTones in the sequencer
+- [x] Allow using SmoothTones in the sequencer
 - [x] Add documentation to all modules
 - [x] Show RMS in the spectrum analyzer
 - [x] Allow picking windowing functions for spectrum analyzer
+- [x] Correctly implement windowing functions on the fft
