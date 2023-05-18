@@ -3,7 +3,7 @@
 
 use std::{
     sync::{
-        atomic::{AtomicI32, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
     thread,
@@ -18,6 +18,8 @@ use parking_lot::Mutex;
 
 use super::{InitContext, Module};
 
+const RANGE_HISTORY: usize = 1000;
+
 pub struct TrueRandom {
     ctx: InitContext,
     args: Args,
@@ -27,9 +29,15 @@ pub struct TrueRandom {
 /// Buffer of random data
 struct Buffer {
     target: usize,
-    range: Mutex<[f32; 2]>,
+    range: Mutex<RingBuffer<RANGE_HISTORY>>,
     data: Mutex<Vec<u8>>,
     size: AtomicUsize,
+}
+
+struct RingBuffer<const SIZE: usize> {
+    data: [f32; SIZE],
+    index: usize,
+    filled: bool,
 }
 
 // Arguments for this module
@@ -110,7 +118,7 @@ impl Buffer {
             target: size,
             data: Mutex::new(Vec::with_capacity(size)),
             size: AtomicUsize::new(0),
-            range: Mutex::new([0.0, f32::MIN_POSITIVE]),
+            range: Mutex::new(RingBuffer::new()),
         }
     }
 
@@ -135,17 +143,22 @@ impl Buffer {
         let mut new_data = BitVec::<u8, Lsb0>::new();
         let mut range = self.range.lock();
         for &sample in data {
-            range[0] = range[0].min(sample);
-            range[1] = range[1].max(sample - range[0]);
+            range.push(sample);
 
-            let val = (sample - range[0]) / range[1];
-            debug_assert!((0. ..=1.).contains(&val), "{val}");
-            let val = (val as f64 * u32::MAX as f64) as u32;
+            if !range.filled {
+                continue;
+            }
+
+            let min = range.min() as f64;
+            let max = range.max() as f64;
+            let val = ((sample as f64 - min) / (max - min) * (u32::MAX as f64)) as u32;
 
             new_data.extend(
-                val.to_ne_bytes().view_bits::<Lsb0>(), // .chunks(2)
-                                                       // .filter(|x| x[0] != x[1])
-                                                       // .map(|x| x[0]),
+                val.to_ne_bytes()
+                    .view_bits::<Lsb0>()
+                    .chunks(2)
+                    .filter(|x| x[0] != x[1])
+                    .map(|x| x[0]),
             );
 
             // If we have enough data, stop
@@ -172,6 +185,34 @@ impl Buffer {
         let out = data.drain(..len).collect();
         self.size.store(data.len(), Ordering::Release);
         Some(out)
+    }
+}
+
+impl<const SIZE: usize> RingBuffer<SIZE> {
+    fn new() -> Self {
+        Self {
+            data: [0.0; SIZE],
+            index: 0,
+            filled: false,
+        }
+    }
+
+    fn push(&mut self, val: f32) {
+        self.data[self.index] = val;
+        let idx = self.index + 1;
+        self.index = idx % SIZE;
+
+        if !self.filled && idx == SIZE {
+            self.filled = true;
+        }
+    }
+
+    fn min(&self) -> f32 {
+        self.data.iter().fold(f32::INFINITY, |a, &b| a.min(b))
+    }
+
+    fn max(&self) -> f32 {
+        self.data.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b))
     }
 }
 
