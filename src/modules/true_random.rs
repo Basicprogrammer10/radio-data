@@ -3,7 +3,7 @@
 
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicI32, AtomicUsize, Ordering},
         Arc,
     },
     thread,
@@ -27,6 +27,7 @@ pub struct TrueRandom {
 /// Buffer of random data
 struct Buffer {
     target: usize,
+    range: Mutex<[f32; 2]>,
     data: Mutex<Vec<u8>>,
     size: AtomicUsize,
 }
@@ -98,12 +99,7 @@ impl Module for TrueRandom {
         buffer.push(working / self.ctx.input.channels() as f32);
 
         // Convert data from a float in the range [-1, 1] to an i32 in the range [-2^31, 2^31)
-        self.buffer.fill_buffer(
-            &buffer
-                .iter()
-                .map(|x| (x * i32::MAX as f32) as i32)
-                .collect::<Vec<_>>(),
-        );
+        self.buffer.fill_buffer(&buffer);
     }
 }
 
@@ -114,6 +110,7 @@ impl Buffer {
             target: size,
             data: Mutex::new(Vec::with_capacity(size)),
             size: AtomicUsize::new(0),
+            range: Mutex::new([0.0, f32::MIN_POSITIVE]),
         }
     }
 
@@ -124,7 +121,7 @@ impl Buffer {
 
     /// Fill the buffer with the given data.
     /// Will not necessarily use all of the data or fill the buffer completely.
-    pub fn fill_buffer(&self, data: &[i32]) {
+    pub fn fill_buffer(&self, data: &[f32]) {
         // If no more data is needed, don't add any more
         let needed = self.target.saturating_sub(self.size());
         if needed == 0 {
@@ -136,14 +133,19 @@ impl Buffer {
         // Then it takes the first bit of each chunk and adds it to the buffer.
         // This discards a lot but its important for getting rid of bias.
         let mut new_data = BitVec::<u8, Lsb0>::new();
+        let mut range = self.range.lock();
         for &sample in data {
+            range[0] = range[0].min(sample);
+            range[1] = range[1].max(sample - range[0]);
+
+            let val = (sample - range[0]) / range[1];
+            debug_assert!((0. ..=1.).contains(&val), "{val}");
+            let val = (val as f64 * u32::MAX as f64) as u32;
+
             new_data.extend(
-                sample
-                    .to_ne_bytes()
-                    .view_bits::<Lsb0>()
-                    .chunks(2)
-                    .filter(|x| x[0] != x[1])
-                    .map(|x| x[0]),
+                val.to_ne_bytes().view_bits::<Lsb0>(), // .chunks(2)
+                                                       // .filter(|x| x[0] != x[1])
+                                                       // .map(|x| x[0]),
             );
 
             // If we have enough data, stop

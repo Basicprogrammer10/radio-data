@@ -35,7 +35,7 @@ bits = bit_vec(buffer)
 n = length(bits)
 
 o = sum(bits)
-z = n - ones
+z = n - o
 println("[*] Bit Ratio: $o/$z = $(o/z)")
 
 s = 0
