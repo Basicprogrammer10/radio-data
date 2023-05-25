@@ -1,5 +1,7 @@
 # im only making this as procrastination
 
+using Plots
+
 POINTS = 1000
 FREQ = 550
 RANGE = 2 * pi * 10
