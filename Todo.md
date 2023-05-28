@@ -31,3 +31,7 @@
 - [x] Allow picking windowing functions for spectrum analyzer
 - [x] Correctly implement windowing functions on the fft
 - [x] Add a gain control to the spectrum analyzer
+
+<!-- New since last update -->
+
+- [x] Move passthrough to its own module under audio
