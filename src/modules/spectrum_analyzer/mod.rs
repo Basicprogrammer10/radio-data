@@ -16,6 +16,7 @@ use rustfft::FftPlanner;
 
 use super::{InitContext, Module};
 use crate::audio::{algorithms::to_mono, passthrough::PassThrough, windows::BoxedWindow};
+use crate::misc::soon::Soon;
 
 mod console;
 mod window;
@@ -31,6 +32,7 @@ const COLOR_SCHEME: &[Color] = &[
 ];
 
 pub struct SpectrumAnalyzer {
+    // == Settings ==
     ctx: InitContext,
     fft_size: usize,
     resolution: f32,
@@ -38,13 +40,14 @@ pub struct SpectrumAnalyzer {
     display_range: Range<usize>,
     window: Arc<BoxedWindow>,
 
-    passthrough: Option<Mutex<PassThrough>>,
+    // == Data ==
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
-    last_samples: Mutex<Option<Vec<f32>>>,
-    this: Mutex<Option<Arc<SpectrumAnalyzer>>>,
-
-    renderer: RwLock<Option<Box<dyn Renderer + Send + Sync + 'static>>>,
+    
+    // == Systems ==
+    passthrough: Option<Mutex<PassThrough>>,
+    renderer: Soon<Box<dyn Renderer + Send + Sync + 'static>>,
+    this: Soon<Arc<SpectrumAnalyzer>>,
 }
 
 #[derive(ValueEnum, Clone, Copy)]
@@ -94,24 +97,24 @@ impl SpectrumAnalyzer {
             passthrough,
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
-            last_samples: Mutex::new(None),
-            this: Mutex::new(None),
 
-            renderer: RwLock::new(None),
+            this: Soon::empty(),
+            renderer: Soon::empty(),
         });
 
         let renderer: Box<dyn Renderer + Send + Sync + 'static> = match renderer {
             DisplayType::Console => Box::new(console::ConsoleRenderer {
                 analyzer: this.clone(),
+                last_samples: Mutex::new(None)
             }),
             DisplayType::Window => Box::new(window::WindowRenderer {
                 analyzer: this.clone(),
-                tx: RwLock::new(None),
+                tx: Soon::empty(),
             }),
         };
 
-        this.renderer.write().replace(renderer);
-        this.this.lock().replace(this.clone());
+        this.renderer.replace(renderer);
+        this.this.replace(this.clone());
         this
     }
 
@@ -155,7 +158,7 @@ impl Module for SpectrumAnalyzer {
         println!("[I] Display range: {:?}", self.display_range);
         println!("[I] Resolution: {}", nice_freq(self.resolution));
 
-        self.renderer.read().as_ref().unwrap().init();
+        self.renderer.init();
     }
 
     fn input(&self, input: &[f32]) {
@@ -166,7 +169,7 @@ impl Module for SpectrumAnalyzer {
 
         // Multithread to make sure the audio passthrough is never blocked
         let input = input.to_vec();
-        let this = self.this.lock().clone().unwrap();
+        let this = self.this.clone();
         thread::spawn(move || {
             // Adds the samples to a buffer
             let mut samples = this.samples.lock();
@@ -197,7 +200,7 @@ impl Module for SpectrumAnalyzer {
                     .map(|x| x.norm())
                     .collect::<Vec<_>>();
 
-                this.renderer.read().as_ref().unwrap().render(norm);
+                this.renderer.render(norm);
             }
         });
     }

@@ -6,20 +6,20 @@ use macroquad::{
     text::draw_text,
     window::next_frame,
 };
-use parking_lot::RwLock;
 
 use super::{Renderer, SpectrumAnalyzer};
+use crate::misc::soon::Soon;
 
 pub struct WindowRenderer {
     pub analyzer: Arc<SpectrumAnalyzer>,
-    pub tx: RwLock<Option<channel::Sender<Vec<f32>>>>,
+    pub tx: Soon<channel::Sender<Vec<f32>>>,
 }
 
 impl Renderer for WindowRenderer {
     fn init(&self) {
         let (tx, rx) = channel::unbounded::<Vec<f32>>();
         macroquad::Window::new("Spectrum Analyzer", amain(rx, self.analyzer.clone()));
-        *self.tx.write() = Some(tx);
+        self.tx.replace(tx);
     }
 
     fn render(&self, data: Vec<f32>) {}

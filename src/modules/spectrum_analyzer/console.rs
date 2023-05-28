@@ -14,6 +14,7 @@ use crossterm::{
     event::{self, KeyCode},
     execute, queue, style, terminal,
 };
+use parking_lot::Mutex;
 
 use super::{nice_freq, Renderer, SpectrumAnalyzer};
 
@@ -21,6 +22,7 @@ const HALF_CHAR: &str = "▀";
 
 pub struct ConsoleRenderer {
     pub analyzer: Arc<SpectrumAnalyzer>,
+    pub last_samples: Mutex<Option<Vec<f32>>>,
 }
 
 impl Renderer for ConsoleRenderer {
@@ -60,7 +62,7 @@ impl ConsoleRenderer {
         // This means by setting the foreground and background color to different values, we can draw more data on line.
         // So we need to cache one line and when we get the next line, we can draw both.
         // Here we add the new data to this cache if if is not full yet, otherwise we continue.
-        let mut last_samples = self.analyzer.last_samples.lock();
+        let mut last_samples = self.last_samples.lock();
         if last_samples.is_none() {
             *last_samples = Some(data);
             return;
