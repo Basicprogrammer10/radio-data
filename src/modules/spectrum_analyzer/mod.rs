@@ -43,7 +43,7 @@ pub struct SpectrumAnalyzer {
     // == Data ==
     planner: Mutex<FftPlanner<f32>>,
     samples: Mutex<Vec<f32>>,
-    
+
     // == Systems ==
     passthrough: Option<Mutex<PassThrough>>,
     renderer: Soon<Box<dyn Renderer + Send + Sync + 'static>>,
@@ -103,14 +103,8 @@ impl SpectrumAnalyzer {
         });
 
         let renderer: Box<dyn Renderer + Send + Sync + 'static> = match renderer {
-            DisplayType::Console => Box::new(console::ConsoleRenderer {
-                analyzer: this.clone(),
-                last_samples: Mutex::new(None)
-            }),
-            DisplayType::Window => Box::new(window::WindowRenderer {
-                analyzer: this.clone(),
-                tx: Soon::empty(),
-            }),
+            DisplayType::Console => Box::new(console::ConsoleRenderer::new(this.clone())),
+            DisplayType::Window => Box::new(window::WindowRenderer::new(this.clone())),
         };
 
         this.renderer.replace(renderer);
@@ -167,6 +161,7 @@ impl Module for SpectrumAnalyzer {
             i.lock().add_samples(input);
         }
 
+        // TODO: instead of spawning a thread here, spawn on in the console renderer
         // Multithread to make sure the audio passthrough is never blocked
         let input = input.to_vec();
         let this = self.this.clone();

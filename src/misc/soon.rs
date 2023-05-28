@@ -1,3 +1,7 @@
+// On the off chance that somebody is actually looking at this.
+// DO NOT USE IT. THERE IS NO GOOD REASON TO DO SOMETHING LIKE THIS.
+// I only wrote this because my reasons are bad.
+
 use std::{cell::UnsafeCell, mem::MaybeUninit, ops::Deref};
 
 /// A *VERY UNSAFE* way to set values after creating a struct.
@@ -22,6 +26,7 @@ impl<T> Soon<T> {
     /// Please only call this once per soon object.
     pub fn replace(&self, val: T) {
         let cell = UnsafeCell::raw_get(self.inner.as_ptr());
+        // SAFETY: nobody cares
         unsafe {
             cell.write(val);
         }

@@ -57,6 +57,13 @@ impl Renderer for ConsoleRenderer {
 }
 
 impl ConsoleRenderer {
+    pub fn new(analyzer: Arc<SpectrumAnalyzer>) -> Self {
+        Self {
+            analyzer,
+            last_samples: Mutex::new(None),
+        }
+    }
+
     fn print_row(&self, data: Vec<f32>) {
         // To double the vertical resolution, we use a box drawing character (▀) that is half filled.
         // This means by setting the foreground and background color to different values, we can draw more data on line.
@@ -68,6 +75,7 @@ impl ConsoleRenderer {
             return;
         }
 
+        // todo: maybe remove BufWriter
         let mut stdout = BufWriter::new(stdout());
         let console_size = terminal::size().unwrap();
         let bar_width = (console_size.0 as usize / data.len()).max(1);
