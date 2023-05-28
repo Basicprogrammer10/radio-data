@@ -52,8 +52,6 @@ impl Renderer for ConsoleRenderer {
         self.print_row(data);
         self.handle_events();
     }
-
-    fn exit(&self) {}
 }
 
 impl ConsoleRenderer {

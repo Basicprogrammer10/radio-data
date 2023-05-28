@@ -56,7 +56,6 @@ pub enum DisplayType {
 trait Renderer {
     fn init(&self);
     fn render(&self, data: Vec<f32>);
-    fn exit(&self);
 }
 
 impl SpectrumAnalyzer {
@@ -101,11 +100,14 @@ impl SpectrumAnalyzer {
             renderer: RwLock::new(None),
         });
 
-        let renderer = match renderer {
+        let renderer: Box<dyn Renderer + Send + Sync + 'static> = match renderer {
             DisplayType::Console => Box::new(console::ConsoleRenderer {
                 analyzer: this.clone(),
             }),
-            DisplayType::Window => todo!(),
+            DisplayType::Window => Box::new(window::WindowRenderer {
+                analyzer: this.clone(),
+                tx: RwLock::new(None),
+            }),
         };
 
         this.renderer.write().replace(renderer);
