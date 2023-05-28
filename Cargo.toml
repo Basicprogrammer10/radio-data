@@ -8,7 +8,7 @@ edition = "2021"
 afire = { version = "2.1.0", default-features = false, features = ["tracing"] }
 anyhow = "1.0.71"
 bitvec = "1.0.1"
-clap = "4.1.13"
+clap = { version = "4.1.13", features = ["derive"] }
 cpal = "0.15.1"
 crossterm = "0.26.1"
 hashbrown = "0.13.2"

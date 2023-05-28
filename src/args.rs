@@ -125,6 +125,12 @@ pub fn parse_args() -> ArgMatches {
                         .help("The gain to apply display, does not affect the passthrough.")
                         .value_parser(value_parser!(f32))
                         .default_value("1.0"),
+                )
+                .arg(
+                    Arg::new("display-type")
+                        .short('t')
+                        .help("The method to use to display the spectrum.")
+                        .value_parser(value_parser!(spectrum_analyzer::DisplayType)),
                 ),
             Command::new("true-random")
                 .alias("trng")

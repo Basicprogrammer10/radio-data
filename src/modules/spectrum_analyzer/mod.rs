@@ -6,35 +6,20 @@
 //! - <https://www.youtube.com/watch?v=dCeHOf4cJE0>
 //! - <https://docs.rs/spectrum-analyzer/latest/src/spectrum_analyzer/windows.rs.html>
 
-// yikes this is a very long file :sweat_smile:
+use std::{f32::consts::E, ops::Range, sync::Arc, thread};
 
-use std::{
-    f32::consts::E,
-    io::{stdout, Write},
-    ops::Range,
-    panic, process,
-    sync::Arc,
-    thread,
-    time::Duration,
-};
-
-use crossterm::{
-    cursor,
-    event::{self, KeyCode},
-    execute, queue, style, terminal,
-};
+use clap::ValueEnum;
+use crossterm::style;
 use num_complex::Complex;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rustfft::FftPlanner;
 
-use crate::{
-    audio::{algorithms::to_mono, passthrough::PassThrough, windows::BoxedWindow},
-    misc::buf_writer::BufWriter,
-};
-
 use super::{InitContext, Module};
+use crate::audio::{algorithms::to_mono, passthrough::PassThrough, windows::BoxedWindow};
 
-const HALF_CHAR: &str = "▀";
+mod console;
+mod window;
+
 const FREQUENCY_UNITS: &[&str] = &["Hz", "kHz", "MHz", "GHz", "THz"];
 const COLOR_SCHEME: &[Color] = &[
     Color::hex(0x000000),
@@ -58,6 +43,20 @@ pub struct SpectrumAnalyzer {
     samples: Mutex<Vec<f32>>,
     last_samples: Mutex<Option<Vec<f32>>>,
     this: Mutex<Option<Arc<SpectrumAnalyzer>>>,
+
+    renderer: RwLock<Option<Box<dyn Renderer + Send + Sync + 'static>>>,
+}
+
+#[derive(ValueEnum, Clone, Copy)]
+pub enum DisplayType {
+    Console,
+    Window,
+}
+
+trait Renderer {
+    fn init(&self);
+    fn render(&self, data: Vec<f32>);
+    fn exit(&self);
 }
 
 impl SpectrumAnalyzer {
@@ -80,6 +79,11 @@ impl SpectrumAnalyzer {
             .to_owned();
         let gain = *ctx.args.get_one("gain").unwrap();
 
+        let renderer = *ctx
+            .args
+            .get_one::<DisplayType>("display-type")
+            .unwrap_or(&DisplayType::Console);
+
         let this = Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
             ctx,
@@ -93,138 +97,20 @@ impl SpectrumAnalyzer {
             samples: Mutex::new(Vec::with_capacity(fft_size)),
             last_samples: Mutex::new(None),
             this: Mutex::new(None),
+
+            renderer: RwLock::new(None),
         });
 
+        let renderer = match renderer {
+            DisplayType::Console => Box::new(console::ConsoleRenderer {
+                analyzer: this.clone(),
+            }),
+            DisplayType::Window => todo!(),
+        };
+
+        this.renderer.write().replace(renderer);
         this.this.lock().replace(this.clone());
         this
-    }
-
-    fn print_row(&self, data: Vec<f32>) {
-        // To double the vertical resolution, we use a box drawing character (▀) that is half filled.
-        // This means by setting the foreground and background color to different values, we can draw more data on line.
-        // So we need to cache one line and when we get the next line, we can draw both.
-        // Here we add the new data to this cache if if is not full yet, otherwise we continue.
-        let mut last_samples = self.last_samples.lock();
-        if last_samples.is_none() {
-            *last_samples = Some(data);
-            return;
-        }
-
-        let mut stdout = BufWriter::new(stdout());
-        let console_size = terminal::size().unwrap();
-        let bar_width = (console_size.0 as usize / data.len()).max(1);
-        let points_per_char = data.len() as f32 / console_size.0 as f32;
-
-        // Calculate the Root Mean Square (RMS) value of the data.
-        // This is shown in the top bar
-        let mut rms = 0.0;
-        let mut n = 0;
-        for i in data.iter().chain(last_samples.as_ref().unwrap().iter()) {
-            rms += i * i;
-            n += 1;
-        }
-        rms = (rms / n as f32).sqrt();
-
-        // Setup the terminal and print the top line which has some stats
-        queue!(
-            stdout,
-            terminal::ScrollUp(1),
-            cursor::MoveTo(0, 0),
-            style::Print(self.top_line(console_size, points_per_char, rms)),
-            cursor::MoveTo(0, console_size.1.saturating_sub(2)),
-        )
-        .unwrap();
-
-        // Init some vars for drawing the spectrum line.
-        // The way the spectrum is drawn is by figuring out how many FFT bins will need to be put in each char.
-        // Then we loop over the data and for each char we average the values of the bins that will be put in that char.
-        // Because the number of bins per char is not always an integer, we need to keep track of the error, so we can add it to the next char.
-        let mut vals = Vec::new();
-        let mut freq_labels = Vec::new();
-        let mut error = 0.;
-        let mut full_size = 0;
-
-        let prev_data = last_samples.as_ref().unwrap().iter().copied();
-        for (i, e) in data.into_iter().zip(prev_data).enumerate() {
-            vals.push((e.0 * self.gain, e.1 * self.gain));
-
-            let points = vals.len() as f32 + error;
-            if points >= points_per_char {
-                error = points - points_per_char;
-                freq_labels.push((full_size, self.index_to_freq(i)));
-
-                let bar = HALF_CHAR.repeat(bar_width);
-                full_size += bar_width;
-
-                queue!(
-                    stdout,
-                    style::SetForegroundColor(get_color(&vals, |x| x.1).into()),
-                    style::SetBackgroundColor(get_color(&vals, |x| x.0).into()),
-                    style::Print(bar),
-                )
-                .unwrap();
-                vals.clear();
-            }
-        }
-
-        // If we don't print a full line, we need to fill the rest with black.
-        if console_size.0 as usize > full_size {
-            queue!(
-                stdout,
-                style::SetForegroundColor(COLOR_SCHEME[0].into()),
-                style::SetBackgroundColor(COLOR_SCHEME[0].into()),
-                style::Print(HALF_CHAR.repeat(console_size.0 as usize - full_size)),
-            )
-            .unwrap();
-        }
-
-        // Prints the frequency labels on the bottom of the screen.
-        queue!(stdout, style::ResetColor, cursor::MoveDown(1)).unwrap();
-        let mut i = 0;
-        while i < freq_labels.len() {
-            let val = &freq_labels[i];
-            let freq = nice_freq(val.1);
-            i += (freq.len() + 3) / bar_width.max(1);
-
-            if val.0 + freq.len() >= console_size.0 as usize {
-                break;
-            }
-
-            queue!(
-                stdout,
-                cursor::MoveToColumn(val.0 as u16),
-                style::Print(format!("└{freq}")),
-            )
-            .unwrap();
-
-            i += 1;
-        }
-
-        stdout.flush().unwrap();
-        *last_samples = None;
-    }
-
-    fn handle_events(&self) {
-        // Returns if there are no events to process
-        let event = event::poll(Duration::ZERO).unwrap();
-        if !event {
-            return;
-        }
-
-        match event::read().unwrap() {
-            // Exit if escape is pressed
-            event::Event::Key(e) => {
-                if e.code == KeyCode::Esc {
-                    exit();
-                    process::exit(0);
-                }
-            }
-            // Clear the screen if the terminal is resized
-            event::Event::Resize(..) => {
-                execute!(stdout(), terminal::Clear(terminal::ClearType::All)).unwrap()
-            }
-            _ => {}
-        }
     }
 
     /// Defines the top status line.
@@ -267,27 +153,7 @@ impl Module for SpectrumAnalyzer {
         println!("[I] Display range: {:?}", self.display_range);
         println!("[I] Resolution: {}", nice_freq(self.resolution));
 
-        // Sets a panic hook
-        // This is important because the terminal will be in a weird state if the program panics
-        // and you wont be able to close the program.
-        panic::set_hook(Box::new(|info| {
-            exit();
-            eprintln!("{info}");
-            process::exit(0)
-        }));
-
-        // Enables raw mode and enters the alternate screen
-        terminal::enable_raw_mode().unwrap();
-
-        let height = terminal::size().unwrap().1;
-        execute!(
-            stdout(),
-            terminal::EnterAlternateScreen,
-            terminal::DisableLineWrap,
-            cursor::Hide,
-            cursor::MoveToRow(height)
-        )
-        .unwrap();
+        self.renderer.read().as_ref().unwrap().init();
     }
 
     fn input(&self, input: &[f32]) {
@@ -329,11 +195,7 @@ impl Module for SpectrumAnalyzer {
                     .map(|x| x.norm())
                     .collect::<Vec<_>>();
 
-                // Handles terminal events like button presses and resizes
-                this.handle_events();
-
-                // Call the above function to print the row
-                this.print_row(norm);
+                this.renderer.read().as_ref().unwrap().render(norm);
             }
         });
     }
@@ -357,18 +219,6 @@ fn nice_freq(mut hz: f32) -> String {
     }
 
     format!("{hz:.1}{}", FREQUENCY_UNITS.last().unwrap())
-}
-
-/// Cleans up the terminal and disables raw mode before exiting.
-fn exit() {
-    execute!(
-        stdout(),
-        terminal::LeaveAlternateScreen,
-        terminal::EnableLineWrap,
-        cursor::Show
-    )
-    .unwrap();
-    terminal::disable_raw_mode().unwrap();
 }
 
 /// Takes in a value between 0 and 1 and returns a color from the color scheme.
