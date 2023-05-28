@@ -11,7 +11,7 @@ use std::{f32::consts::E, ops::Range, sync::Arc, thread};
 use clap::ValueEnum;
 use crossterm::style;
 use num_complex::Complex;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use rustfft::FftPlanner;
 
 use super::{InitContext, Module};
@@ -110,30 +110,6 @@ impl SpectrumAnalyzer {
         this.renderer.replace(renderer);
         this.this.replace(this.clone());
         this
-    }
-
-    /// Defines the top status line.
-    /// This line contains some stats about the current state of the program:
-    /// - FFT size &mdash; The number of samples that are used for each FFT.
-    /// - Domain &mdash; The frequency range that is currently displayed.
-    /// - Gain &mdash; The gain that is applied to the data when displaying.
-    /// - Res &mdash; The frequency resolution of each character used to display the spectrum.
-    /// - RMS &mdash; The Root Mean Square value of the current FFT data.
-    fn top_line(&self, size: (u16, u16), points_per_char: f32, rms: f32) -> String {
-        let start = "[RADIO-DATA SPECTRUM ANALYZER]";
-        let end = format!(
-            "{{FFT size: {}, Window: {}, Domain: {}..{}, Gain: {:.1}, Res: {}, RMS: {:.1}}} [ESC: Quit]",
-            self.fft_size,
-            self.window.name(),
-            nice_freq(self.display_range.start as f32),
-            nice_freq(self.display_range.end as f32),
-            self.gain,
-            nice_freq(self.resolution * points_per_char),
-            rms
-        );
-
-        let diff = (size.0 as usize).saturating_sub(start.len() + end.len());
-        format!("{}{}{}", start, " ".repeat(diff), end)
     }
 
     fn index_to_freq(&self, idx: usize) -> f32 {

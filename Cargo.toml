@@ -12,6 +12,9 @@ clap = { version = "4.1.13", features = ["derive"] }
 cpal = "0.15.1"
 crossbeam = "0.8.2"
 crossterm = "0.26.1"
+egui = "0.21.0"
+egui-macroquad = { version = "0.15.0", default-features = false }
+egui_extras = "0.21.0"
 hashbrown = "0.13.2"
 macroquad = { version = "0.3.25", default-features = false }
 num-complex = "0.4.3"

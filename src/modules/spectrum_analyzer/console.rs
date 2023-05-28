@@ -96,7 +96,7 @@ impl ConsoleRenderer {
             stdout,
             terminal::ScrollUp(1),
             cursor::MoveTo(0, 0),
-            style::Print(self.analyzer.top_line(console_size, points_per_char, rms)),
+            style::Print(self.top_line(console_size, points_per_char, rms)),
             cursor::MoveTo(0, console_size.1.saturating_sub(2)),
         )
         .unwrap();
@@ -191,6 +191,30 @@ impl ConsoleRenderer {
             }
             _ => {}
         }
+    }
+
+    /// Defines the top status line.
+    /// This line contains some stats about the current state of the program:
+    /// - FFT size &mdash; The number of samples that are used for each FFT.
+    /// - Domain &mdash; The frequency range that is currently displayed.
+    /// - Gain &mdash; The gain that is applied to the data when displaying.
+    /// - Res &mdash; The frequency resolution of each character used to display the spectrum.
+    /// - RMS &mdash; The Root Mean Square value of the current FFT data.
+    fn top_line(&self, size: (u16, u16), points_per_char: f32, rms: f32) -> String {
+        let start = "[RADIO-DATA SPECTRUM ANALYZER]";
+        let end = format!(
+            "{{FFT size: {}, Window: {}, Domain: {}..{}, Gain: {:.1}, Res: {}, RMS: {:.1}}} [ESC: Quit]",
+            self.analyzer.fft_size,
+            self.analyzer.window.name(),
+            nice_freq(self.analyzer.display_range.start as f32),
+            nice_freq(self.analyzer.display_range.end as f32),
+            self.analyzer.gain,
+            nice_freq(self.analyzer.resolution * points_per_char),
+            rms
+        );
+
+        let diff = (size.0 as usize).saturating_sub(start.len() + end.len());
+        format!("{}{}{}", start, " ".repeat(diff), end)
     }
 }
 
