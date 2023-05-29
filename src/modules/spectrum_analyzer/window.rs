@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,8 +17,7 @@ use winit_input_helper::WinitInputHelper;
 use super::egui::{Egui, Gui};
 use super::{nice_freq, Renderer, SpectrumAnalyzer};
 
-const WIDTH: u32 = 320;
-const HEIGHT: u32 = 240;
+const INIT_SIZE: (u32, u32) = (320, 240);
 
 pub struct WindowRenderer {
     window: Arc<Window>,
@@ -27,6 +27,7 @@ struct Window {
     analyzer: Arc<SpectrumAnalyzer>,
     history: RwLock<Vec<Vec<f32>>>,
     last_frame: Mutex<f64>,
+    size: (AtomicU32, AtomicU32),
 }
 
 impl Renderer for WindowRenderer {
@@ -39,33 +40,26 @@ impl Renderer for WindowRenderer {
     fn block(&self) -> ! {
         let event_loop = EventLoop::new();
         let mut input = WinitInputHelper::new();
-        let window = {
-            let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-            WindowBuilder::new()
-                .with_title("Radio Data - Spectrum Analyzer")
-                .with_inner_size(size)
-                .with_min_inner_size(size)
-                .build(&event_loop)
-                .unwrap()
-        };
+        let size = LogicalSize::new(INIT_SIZE.0 as f64, INIT_SIZE.1 as f64);
+        let window = WindowBuilder::new()
+            .with_title("Radio Data - Spectrum Analyzer")
+            .with_inner_size(size)
+            .with_min_inner_size(size)
+            .build(&event_loop)
+            .unwrap();
 
-        let (mut pixels, mut framework) = {
-            let window_size = window.inner_size();
-            let scale_factor = window.scale_factor() as f32;
-            let surface_texture =
-                SurfaceTexture::new(window_size.width, window_size.height, &window);
-            let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap();
-            let framework = Egui::new(
-                &event_loop,
-                window_size.width,
-                window_size.height,
-                scale_factor,
-                &pixels,
-                self.window.clone(),
-            );
-
-            (pixels, framework)
-        };
+        let window_size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        let mut pixels = Pixels::new(INIT_SIZE.0, INIT_SIZE.1, surface_texture).unwrap();
+        let mut framework = Egui::new(
+            &event_loop,
+            window_size.width,
+            window_size.height,
+            scale_factor,
+            &pixels,
+            self.window.clone(),
+        );
 
         let win = self.window.clone();
         event_loop.run(move |event, _, control_flow| {
@@ -80,37 +74,31 @@ impl Renderer for WindowRenderer {
                 }
 
                 if let Some(size) = input.window_resized() {
-                    if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                        eprintln!("[pixels.resize_surface] {err}");
-                        *control_flow = ControlFlow::Exit;
-                        return;
-                    }
+                    pixels.resize_buffer(size.width, size.height).unwrap();
+                    pixels.resize_surface(size.width, size.height).unwrap();
+                    win.size.0.store(size.width, Ordering::Relaxed);
+                    win.size.1.store(size.height, Ordering::Relaxed);
                     framework.resize(size.width, size.height);
                 }
 
-                // world.update();
                 window.request_redraw();
             }
 
             match event {
                 Event::WindowEvent { event, .. } => {
-                    // Update egui inputs
                     framework.handle_event(&event);
                 }
                 Event::RedrawRequested(_) => {
                     win.draw(pixels.frame_mut());
                     framework.prepare(&window);
 
-                    let render_result = pixels.render_with(|encoder, render_target, context| {
-                        context.scaling_renderer.render(encoder, render_target);
-                        framework.render(encoder, render_target, context);
-                        Ok(())
-                    });
-
-                    if let Err(err) = render_result {
-                        eprintln!("[pixels.render] {err}");
-                        *control_flow = ControlFlow::Exit;
-                    }
+                    pixels
+                        .render_with(|encoder, render_target, context| {
+                            context.scaling_renderer.render(encoder, render_target);
+                            framework.render(encoder, render_target, context);
+                            Ok(())
+                        })
+                        .unwrap();
                 }
                 _ => (),
             }
@@ -125,13 +113,26 @@ impl WindowRenderer {
                 analyzer,
                 history: RwLock::new(Vec::new()),
                 last_frame: Mutex::new(now()),
+                size: (AtomicU32::new(INIT_SIZE.0), AtomicU32::new(INIT_SIZE.1)),
             }),
         }
     }
 }
 
 impl Window {
-    fn draw(&self, image: &mut [u8]) {}
+    fn draw(&self, image: &mut [u8]) {
+        let mut flag = false;
+        for (i, e) in image.chunks_exact_mut(4).enumerate() {
+            flag ^= true;
+            let row = i / self.size.0.load(Ordering::Relaxed) as usize;
+            let color = if flag ^ (row % 2 == 0) {
+                [0; 4]
+            } else {
+                [255; 4]
+            };
+            e.copy_from_slice(&color);
+        }
+    }
 
     fn top_line(&self, ui: &mut Ui) {
         let now = now();

@@ -23,26 +23,10 @@ serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 
 # GUI #
-# egui = "0.21.0"
-# egui-macroquad = { version = "0.15.0", default-features = false }
-# egui_extras = "0.21.0"
+egui = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
+egui_extras = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
+egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
+egui-winit = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
+pixels = "0.12.1"
 winit = "0.27"
 winit_input_helper = "0.13"
-pixels = "0.12.1"
-
-
-[dependencies.egui]
-git = "https://github.com/emilk/egui.git"
-rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886"
-
-[dependencies.egui_extras]
-git = "https://github.com/emilk/egui.git"
-rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886"
-
-[dependencies.egui-wgpu]
-git = "https://github.com/emilk/egui.git"
-rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886"
-
-[dependencies.egui-winit]
-git = "https://github.com/emilk/egui.git"
-rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886"
