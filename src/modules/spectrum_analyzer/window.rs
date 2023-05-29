@@ -1,8 +1,4 @@
-use std::collections::VecDeque;
-use std::f32::consts::E;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+use std::{collections::VecDeque, f32::consts::E, sync::Arc, time::Instant};
 
 use egui::{Context, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
@@ -16,32 +12,32 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use crate::misc::ring_buffer::RingBuffer;
-use crate::modules::spectrum_analyzer::Color;
-
-use super::egui::{Egui, Gui};
-use super::{color, nice_freq, Renderer, SpectrumAnalyzer};
+use super::{
+    egui::{Egui, Gui},
+    {color, nice_freq, Renderer, SpectrumAnalyzer},
+};
+use crate::{misc::ring_buffer::RingBuffer, modules::spectrum_analyzer::Color};
 
 const INIT_SIZE: (u32, u32) = (320, 240);
 
 pub struct WindowRenderer {
-    window: Arc<Window>,
+    window: Arc<Mutex<Window>>,
 }
 
 struct Window {
     analyzer: Arc<SpectrumAnalyzer>,
-    new: Mutex<VecDeque<Vec<f32>>>,
-    last_frame: Mutex<Instant>,
-    frame_history: Mutex<RingBuffer<f32, 1000>>,
-    size: (AtomicU32, AtomicU32),
-    resize: AtomicBool,
+    new: VecDeque<Vec<f32>>,
+    last_frame: Instant,
+    frame_history: RingBuffer<f32, 1000>,
+    size: (u32, u32),
+    resize: bool,
 }
 
 impl Renderer for WindowRenderer {
     fn init(&self) {}
 
     fn render(&self, data: Vec<f32>) {
-        self.window.new.lock().push_back(data);
+        self.window.lock().new.push_back(data);
     }
 
     fn block(&self) -> ! {
@@ -83,10 +79,10 @@ impl Renderer for WindowRenderer {
                 if let Some(size) = input.window_resized() {
                     pixels.resize_buffer(size.width, size.height).unwrap();
                     pixels.resize_surface(size.width, size.height).unwrap();
-                    win.resize.store(true, Ordering::Relaxed);
-                    win.size.0.store(size.width, Ordering::Relaxed);
-                    win.size.1.store(size.height, Ordering::Relaxed);
                     framework.resize(size.width, size.height);
+                    let mut win = win.lock();
+                    win.size = (size.width, size.height);
+                    win.resize = true;
                 }
 
                 window.request_redraw();
@@ -97,7 +93,7 @@ impl Renderer for WindowRenderer {
                     framework.handle_event(&event);
                 }
                 Event::RedrawRequested(_) => {
-                    win.draw(pixels.frame_mut());
+                    win.lock().draw(pixels.frame_mut());
                     framework.prepare(&window);
 
                     pixels
@@ -117,26 +113,24 @@ impl Renderer for WindowRenderer {
 impl WindowRenderer {
     pub fn new(analyzer: Arc<SpectrumAnalyzer>) -> Self {
         Self {
-            window: Arc::new(Window {
+            window: Arc::new(Mutex::new(Window {
                 analyzer,
-                new: Mutex::new(VecDeque::new()),
-                last_frame: Mutex::new(Instant::now()),
-                frame_history: Mutex::new(RingBuffer::new()),
-                size: (AtomicU32::new(INIT_SIZE.0), AtomicU32::new(INIT_SIZE.1)),
-                resize: AtomicBool::new(false),
-            }),
+                new: VecDeque::new(),
+                last_frame: Instant::now(),
+                frame_history: RingBuffer::new(),
+                size: INIT_SIZE,
+                resize: false,
+            })),
         }
     }
 }
 
 impl Window {
-    fn draw(&self, image: &mut [u8]) {
-        let row_size = self.size.0.load(Ordering::Relaxed) as usize;
-        let rows = self.size.1.load(Ordering::Relaxed) as usize;
-        let mut new = self.new.lock(); // todo: make mutex
-        let image_len = image.len();
+    fn draw(&mut self, image: &mut [u8]) {
+        let (width, height) = (self.size.0 as usize, self.size.1 as usize);
 
-        if self.resize.swap(false, Ordering::Relaxed) {
+        if self.resize {
+            self.resize = false;
             image.iter_mut().for_each(|x| *x = 0);
         }
 
@@ -144,15 +138,13 @@ impl Window {
         let mut points = Vec::new();
         let mut xi = 0;
 
-        while let Some(row) = new.pop_front() {
-            let points_per_px = row.len() as f32 / row_size as f32;
-            let pxs_per_point = (row_size / row.len()).max(1);
+        while let Some(row) = self.new.pop_front() {
+            let points_per_px = row.len() as f32 / self.size.0 as f32;
+            let pxs_per_point = (self.size.0 as usize / row.len()).max(1);
 
             // scroll everything up one
-            let prev = image[(row_size * 4)..(row_size * rows * 4)].to_owned();
-            debug_assert_eq!(prev.len(), row_size * (rows - 1) * 4);
-            debug_assert_eq!(image_len, row_size * rows * 4);
-            image[0..(row_size * (rows - 1) * 4)].copy_from_slice(&prev);
+            let prev = image[(width * 4)..(width * height * 4)].to_owned();
+            image[0..(width * (height - 1) * 4)].copy_from_slice(&prev);
 
             // Draw new row
             for x in row {
@@ -167,7 +159,7 @@ impl Window {
                     let color = color(val);
 
                     for _ in 0..pxs_per_point {
-                        set_pixel(image, row_size, (xi, rows - 1), color);
+                        set_pixel(image, width, (xi, height - 1), color);
                         xi += 1;
                     }
                 }
@@ -179,16 +171,14 @@ impl Window {
         }
     }
 
-    fn top_line(&self, ui: &mut Ui) {
-        let mut last_frame = self.last_frame.lock();
-        let delta = last_frame.elapsed().as_secs_f32();
-        *last_frame = Instant::now();
-        let mut history = self.frame_history.lock();
-        history.push(delta);
+    fn top_line(&mut self, ui: &mut Ui) {
+        let delta = self.last_frame.elapsed().as_secs_f32();
+        self.last_frame = Instant::now();
+        self.frame_history.push(delta);
 
         let analyzer = &self.analyzer;
         let info = [
-            ("FPS", format!("{:.2}", history.avg().recip())),
+            ("FPS", format!("{:.2}", self.frame_history.avg().recip())),
             ("FFT size", analyzer.fft_size.to_string()),
             (
                 "Sample Rate",
@@ -226,8 +216,9 @@ impl Window {
     }
 }
 
-impl Gui for Arc<Window> {
+impl Gui for Arc<Mutex<Window>> {
     fn ui(&self, ctx: &Context) {
+        let mut this = self.lock();
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.label(RichText::new("[RADIO-DATA SPECTRUM ANALYZER]").monospace());
@@ -235,7 +226,7 @@ impl Gui for Arc<Window> {
         });
 
         egui::Window::new("Spectrum Analyzer").show(ctx, |ui| {
-            self.top_line(ui);
+            this.top_line(ui);
         });
     }
 }

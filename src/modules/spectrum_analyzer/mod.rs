@@ -262,7 +262,7 @@ impl Color {
         )
     }
 
-    fn to_slice(&self) -> [u8; 4] {
+    fn to_slice(self) -> [u8; 4] {
         [self.r, self.g, self.b, 255]
     }
 }
