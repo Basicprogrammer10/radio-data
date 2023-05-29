@@ -1913,6 +1913,7 @@ dependencies = [
  "egui_extras",
  "hashbrown 0.13.2",
  "num-complex",
+ "num-traits",
  "parking_lot",
  "pixels",
  "rand",

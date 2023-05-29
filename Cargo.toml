@@ -29,3 +29,4 @@ egui-winit = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8be
 pixels = "0.12.1"
 winit = "0.27"
 winit_input_helper = "0.13"
+num-traits = "0.2.15"

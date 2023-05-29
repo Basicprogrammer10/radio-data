@@ -16,6 +16,8 @@ use afire::{
 use bitvec::{order::Lsb0, vec::BitVec, view::BitView};
 use parking_lot::Mutex;
 
+use crate::misc::ring_buffer::RingBuffer;
+
 use super::{InitContext, Module};
 
 const RANGE_HISTORY: usize = 1000;
@@ -29,15 +31,9 @@ pub struct TrueRandom {
 /// Buffer of random data
 struct Buffer {
     target: usize,
-    range: Mutex<RingBuffer<RANGE_HISTORY>>,
+    range: Mutex<RingBuffer<f32, RANGE_HISTORY>>,
     data: Mutex<Vec<u8>>,
     size: AtomicUsize,
-}
-
-struct RingBuffer<const SIZE: usize> {
-    data: [f32; SIZE],
-    index: usize,
-    filled: bool,
 }
 
 // Arguments for this module
@@ -185,34 +181,6 @@ impl Buffer {
         let out = data.drain(..len).collect();
         self.size.store(data.len(), Ordering::Release);
         Some(out)
-    }
-}
-
-impl<const SIZE: usize> RingBuffer<SIZE> {
-    fn new() -> Self {
-        Self {
-            data: [0.0; SIZE],
-            index: 0,
-            filled: false,
-        }
-    }
-
-    fn push(&mut self, val: f32) {
-        self.data[self.index] = val;
-        let idx = self.index + 1;
-        self.index = idx % SIZE;
-
-        if !self.filled && idx == SIZE {
-            self.filled = true;
-        }
-    }
-
-    fn min(&self) -> f32 {
-        self.data.iter().fold(f32::INFINITY, |a, &b| a.min(b))
-    }
-
-    fn max(&self) -> f32 {
-        self.data.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b))
     }
 }
 

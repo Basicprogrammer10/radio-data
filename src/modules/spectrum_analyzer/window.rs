@@ -1,11 +1,12 @@
+use std::collections::VecDeque;
 use std::f32::consts::E;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use egui::{Context, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
@@ -15,6 +16,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
+use crate::misc::ring_buffer::RingBuffer;
 use crate::modules::spectrum_analyzer::Color;
 
 use super::egui::{Egui, Gui};
@@ -28,8 +30,9 @@ pub struct WindowRenderer {
 
 struct Window {
     analyzer: Arc<SpectrumAnalyzer>,
-    history: RwLock<Vec<Vec<f32>>>,
-    last_frame: Mutex<f64>,
+    new: Mutex<VecDeque<Vec<f32>>>,
+    last_frame: Mutex<Instant>,
+    frame_history: Mutex<RingBuffer<f32, 1000>>,
     size: (AtomicU32, AtomicU32),
 }
 
@@ -37,7 +40,7 @@ impl Renderer for WindowRenderer {
     fn init(&self) {}
 
     fn render(&self, data: Vec<f32>) {
-        self.window.history.write().push(data);
+        self.window.new.lock().push_back(data);
     }
 
     fn block(&self) -> ! {
@@ -114,8 +117,9 @@ impl WindowRenderer {
         Self {
             window: Arc::new(Window {
                 analyzer,
-                history: RwLock::new(Vec::new()),
-                last_frame: Mutex::new(now()),
+                new: Mutex::new(VecDeque::new()),
+                last_frame: Mutex::new(Instant::now()),
+                frame_history: Mutex::new(RingBuffer::new()),
                 size: (AtomicU32::new(INIT_SIZE.0), AtomicU32::new(INIT_SIZE.1)),
             }),
         }
@@ -126,27 +130,24 @@ impl Window {
     fn draw(&self, image: &mut [u8]) {
         let row_size = self.size.0.load(Ordering::Relaxed) as usize;
         let rows = self.size.1.load(Ordering::Relaxed) as usize;
-        let history = self.history.read();
-        let fft_size = self.analyzer.fft_size;
-
-        // scroll everything up one
-        let len = image.len();
-        let prev = image[row_size..].to_owned();
-        image[0..len - row_size].copy_from_slice(&prev);
-
-        let points_per_px = fft_size as f32 / row_size as f32;
-        let pxs_per_point = (row_size / fft_size).max(1);
+        let mut new = self.new.lock(); // todo: make mutex
+        let image_len = image.len();
 
         let mut error = 0.0;
         let mut points = Vec::new();
         let mut xi = 0;
 
-        // let show_rows = rows.min(history.len());
-        for ri in 0..1 {
-            let history_index = history.len() - ri - 1;
-            let row = history.get(history_index).unwrap();
+        while let Some(row) = new.pop_front() {
+            let points_per_px = row.len() as f32 / row_size as f32;
+            let pxs_per_point = (row_size / row.len()).max(1);
 
-            let ri = rows - ri - 1;
+            // scroll everything up one
+            let prev = image[(row_size * 4)..(row_size * rows * 4)].to_owned();
+            debug_assert_eq!(prev.len(), row_size * (rows - 1) * 4);
+            debug_assert_eq!(image_len, row_size * rows * 4);
+            image[0..(row_size * (rows - 1) * 4)].copy_from_slice(&prev);
+
+            // Draw new row
             for x in row {
                 points.push(x);
 
@@ -159,23 +160,28 @@ impl Window {
                     let color = color(val);
 
                     for _ in 0..pxs_per_point {
-                        set_pixel(image, row_size, (xi, ri), color);
+                        set_pixel(image, row_size, (xi, rows - 1), color);
                         xi += 1;
                     }
                 }
             }
+
+            xi = 0;
+            error = 0.0;
+            points.clear();
         }
     }
 
     fn top_line(&self, ui: &mut Ui) {
-        let now = now();
         let mut last_frame = self.last_frame.lock();
-        let delta = now - *last_frame;
-        *last_frame = now;
+        let delta = last_frame.elapsed().as_secs_f32();
+        *last_frame = Instant::now();
+        let mut history = self.frame_history.lock();
+        history.push(delta);
 
         let analyzer = &self.analyzer;
         let info = [
-            ("FPS", format!("{:.2}", delta.recip())),
+            ("FPS", format!("{:.2}", history.avg().recip())),
             ("FFT size", analyzer.fft_size.to_string()),
             (
                 "Sample Rate",
@@ -225,13 +231,6 @@ impl Gui for Arc<Window> {
             self.top_line(ui);
         });
     }
-}
-
-fn now() -> f64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs_f64()
 }
 
 fn set_pixel(image: &mut [u8], row_size: usize, pos: (usize, usize), color: Color) {
