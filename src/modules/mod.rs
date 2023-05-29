@@ -1,6 +1,6 @@
 //! The different modules (subcommands) that can be used in the program.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, thread};
 
 use clap::ArgMatches;
 use cpal::{InputCallbackInfo, OutputCallbackInfo, SupportedStreamConfig};
@@ -19,6 +19,15 @@ pub trait Module {
     fn name(&self) -> &'static str;
     /// Called when the module is initialized.
     fn init(&self) {}
+    /// Runs after all the setup stuff had been done in the main thread.
+    /// Lets the module take contraol of it.
+    /// This is useful if a module is opening a window, which is an operation that should be preformed on the main thread because of macos compatibility.
+    /// (i think)
+    fn block(&self) -> ! {
+        loop {
+            thread::park()
+        }
+    }
     /// Input callback.
     /// The different channels are interleaved, so if there are two channels the format will be `[L, R, L, R, ...]`.
     /// Note: If a input gain is set, the input will be multiplied by that gain before being passed to this function.

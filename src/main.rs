@@ -52,12 +52,13 @@ fn main() {
         )
         .unwrap();
 
+    let module_ref = module.clone();
     let input_stream = devices
         .input_device
         .build_input_stream(
             &devices.input_config.into(),
             move |data: &[f32], info: &cpal::InputCallbackInfo| {
-                module.input_raw(data, info, devices.input_gain)
+                module_ref.input_raw(data, info, devices.input_gain)
             },
             |err| eprintln!("[-] Error: {err}"),
             None,
@@ -66,5 +67,5 @@ fn main() {
 
     output_stream.play().unwrap();
     input_stream.play().unwrap();
-    std::thread::park();
+    module.block();
 }
