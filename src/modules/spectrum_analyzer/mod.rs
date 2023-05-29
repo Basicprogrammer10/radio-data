@@ -261,6 +261,10 @@ impl Color {
             (self.b as f32 + (other.b as f32 - self.b as f32) * t) as u8,
         )
     }
+
+    fn to_slice(&self) -> [u8; 4] {
+        [self.r, self.g, self.b, 255]
+    }
 }
 
 /// Converts a Color to a crossterm::style::Color
@@ -270,17 +274,6 @@ impl From<Color> for style::Color {
             r: color.r,
             g: color.g,
             b: color.b,
-        }
-    }
-}
-
-impl From<Color> for macroquad::color::Color {
-    fn from(color: Color) -> Self {
-        macroquad::color::Color {
-            r: color.r as f32 / 255.,
-            g: color.g as f32 / 255.,
-            b: color.b as f32 / 255.,
-            a: 1.0,
         }
     }
 }

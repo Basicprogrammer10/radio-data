@@ -1,3 +1,4 @@
+use std::f32::consts::E;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,8 +15,10 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
+use crate::modules::spectrum_analyzer::Color;
+
 use super::egui::{Egui, Gui};
-use super::{nice_freq, Renderer, SpectrumAnalyzer};
+use super::{color, nice_freq, Renderer, SpectrumAnalyzer};
 
 const INIT_SIZE: (u32, u32) = (320, 240);
 
@@ -121,16 +124,21 @@ impl WindowRenderer {
 
 impl Window {
     fn draw(&self, image: &mut [u8]) {
-        let mut flag = false;
-        for (i, e) in image.chunks_exact_mut(4).enumerate() {
-            flag ^= true;
-            let row = i / self.size.0.load(Ordering::Relaxed) as usize;
-            let color = if flag ^ (row % 2 == 0) {
-                [0; 4]
-            } else {
-                [255; 4]
-            };
-            e.copy_from_slice(&color);
+        let row_size = self.size.0.load(Ordering::Relaxed) as usize;
+        let rows = self.size.1.load(Ordering::Relaxed) as usize;
+        let history = self.history.read();
+
+        let show_rows = rows.min(history.len());
+        for ri in 0..show_rows {
+            let history_index = history.len() - ri - 1;
+            let row = history.get(history_index).unwrap();
+
+            let ri = rows - ri - 1;
+            for (xi, x) in row.iter().enumerate() {
+                let val = 1. - E.powf(-x);
+                let color = color(val);
+                set_pixel(image, row_size, (xi, ri), color);
+            }
         }
     }
 
@@ -144,6 +152,10 @@ impl Window {
         let info = [
             ("FPS", format!("{:.2}", delta.recip())),
             ("FFT size", analyzer.fft_size.to_string()),
+            (
+                "Sample Rate",
+                analyzer.ctx.input.sample_rate().0.to_string(),
+            ),
             ("Window", analyzer.window.name().to_owned()),
             (
                 "Domain",
@@ -195,4 +207,10 @@ fn now() -> f64 {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs_f64()
+}
+
+fn set_pixel(image: &mut [u8], row_size: usize, pos: (usize, usize), color: Color) {
+    let pixel = (pos.0 + pos.1 * row_size) * 4;
+    let color = color.to_slice();
+    image[pixel..pixel + 4].copy_from_slice(&color);
 }
