@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::f32::consts::E;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use egui::{Context, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
@@ -34,6 +34,7 @@ struct Window {
     last_frame: Mutex<Instant>,
     frame_history: Mutex<RingBuffer<f32, 1000>>,
     size: (AtomicU32, AtomicU32),
+    resize: AtomicBool,
 }
 
 impl Renderer for WindowRenderer {
@@ -82,6 +83,7 @@ impl Renderer for WindowRenderer {
                 if let Some(size) = input.window_resized() {
                     pixels.resize_buffer(size.width, size.height).unwrap();
                     pixels.resize_surface(size.width, size.height).unwrap();
+                    win.resize.store(true, Ordering::Relaxed);
                     win.size.0.store(size.width, Ordering::Relaxed);
                     win.size.1.store(size.height, Ordering::Relaxed);
                     framework.resize(size.width, size.height);
@@ -121,6 +123,7 @@ impl WindowRenderer {
                 last_frame: Mutex::new(Instant::now()),
                 frame_history: Mutex::new(RingBuffer::new()),
                 size: (AtomicU32::new(INIT_SIZE.0), AtomicU32::new(INIT_SIZE.1)),
+                resize: AtomicBool::new(false),
             }),
         }
     }
@@ -132,6 +135,10 @@ impl Window {
         let rows = self.size.1.load(Ordering::Relaxed) as usize;
         let mut new = self.new.lock(); // todo: make mutex
         let image_len = image.len();
+
+        if self.resize.swap(false, Ordering::Relaxed) {
+            image.iter_mut().for_each(|x| *x = 0);
+        }
 
         let mut error = 0.0;
         let mut points = Vec::new();
