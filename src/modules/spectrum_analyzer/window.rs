@@ -127,17 +127,42 @@ impl Window {
         let row_size = self.size.0.load(Ordering::Relaxed) as usize;
         let rows = self.size.1.load(Ordering::Relaxed) as usize;
         let history = self.history.read();
+        let fft_size = self.analyzer.fft_size;
 
-        let show_rows = rows.min(history.len());
-        for ri in 0..show_rows {
+        // scroll everything up one
+        let len = image.len();
+        let prev = image[row_size..].to_owned();
+        image[0..len - row_size].copy_from_slice(&prev);
+
+        let points_per_px = fft_size as f32 / row_size as f32;
+        let pxs_per_point = (row_size / fft_size).max(1);
+
+        let mut error = 0.0;
+        let mut points = Vec::new();
+        let mut xi = 0;
+
+        // let show_rows = rows.min(history.len());
+        for ri in 0..1 {
             let history_index = history.len() - ri - 1;
             let row = history.get(history_index).unwrap();
 
             let ri = rows - ri - 1;
-            for (xi, x) in row.iter().enumerate() {
-                let val = 1. - E.powf(-x);
-                let color = color(val);
-                set_pixel(image, row_size, (xi, ri), color);
+            for x in row {
+                points.push(x);
+
+                let err_points = points.len() as f32 + error;
+                if err_points >= points_per_px {
+                    error = err_points - points_per_px;
+
+                    let avg = points.iter().copied().sum::<f32>() / points.len() as f32;
+                    let val = 1.0 - E.powf(-avg);
+                    let color = color(val);
+
+                    for _ in 0..pxs_per_point {
+                        set_pixel(image, row_size, (xi, ri), color);
+                        xi += 1;
+                    }
+                }
             }
         }
     }
