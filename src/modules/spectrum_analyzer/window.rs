@@ -28,7 +28,7 @@ struct Window {
     analyzer: Arc<SpectrumAnalyzer>,
     new: VecDeque<Vec<f32>>,
     last_frame: Instant,
-    frame_history: RingBuffer<f32, 1000>,
+    frame_history: RingBuffer<f32, 200>,
     size: (u32, u32),
     resize: bool,
 }

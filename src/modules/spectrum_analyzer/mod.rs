@@ -19,7 +19,9 @@ use crate::audio::{algorithms::to_mono, passthrough::PassThrough, windows::Boxed
 use crate::misc::soon::Soon;
 
 mod console;
+#[cfg(feature = "gui")]
 mod egui;
+#[cfg(feature = "gui")]
 mod window;
 
 const FREQUENCY_UNITS: &[&str] = &["Hz", "kHz", "MHz", "GHz", "THz"];
@@ -54,6 +56,7 @@ pub struct SpectrumAnalyzer {
 #[derive(ValueEnum, Clone, Copy)]
 pub enum DisplayType {
     Console,
+    #[cfg(feature = "gui")]
     Window,
 }
 
@@ -110,6 +113,7 @@ impl SpectrumAnalyzer {
 
         let renderer: Box<dyn Renderer + Send + Sync + 'static> = match renderer {
             DisplayType::Console => Box::new(console::ConsoleRenderer::new(this.clone())),
+            #[cfg(feature = "gui")]
             DisplayType::Window => Box::new(window::WindowRenderer::new(this.clone())),
         };
 
@@ -143,43 +147,37 @@ impl Module for SpectrumAnalyzer {
             i.lock().add_samples(input);
         }
 
-        // TODO: instead of spawning a thread here, spawn on in the console renderer
-        // Multithread to make sure the audio passthrough is never blocked
-        let input = input.to_vec();
-        let this = self.this.clone();
-        thread::spawn(move || {
-            // Adds the samples to a buffer
-            let mut samples = this.samples.lock();
-            samples.reserve(input.len() / this.ctx.input.channels() as usize + 1);
-            samples.extend(to_mono(&input, this.ctx.input.channels() as usize));
+        // Adds the samples to a buffer
+        let mut samples = self.samples.lock();
+        samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
+        samples.extend(to_mono(&input, self.ctx.input.channels() as usize));
 
-            // If the buffer is big enough, it will process it
-            while samples.len() >= this.fft_size {
-                // Applies the windowing function and converts the samples to complex numbers
-                let samples = samples.drain(..this.fft_size);
-                let mut buf = Vec::with_capacity(this.fft_size);
-                for &i in this.window.window(samples.as_slice()).iter() {
-                    buf.push(Complex::new(i, 0.));
-                }
-
-                // Run the FFT
-                let fft = this.planner.lock().plan_fft_forward(this.fft_size);
-                fft.process(&mut buf);
-
-                // Slice the buffer to the display range
-                let sample_rate = this.ctx.sample_rate().input as usize;
-                let start = this.display_range.start * this.fft_size / sample_rate;
-                let end = this.display_range.end * this.fft_size / sample_rate;
-
-                // Normalize the complex numbers (r^2 + i^2)
-                let norm = buf[start.max(0)..=end.min(buf.len() / 2)]
-                    .iter()
-                    .map(|x| x.norm())
-                    .collect::<Vec<_>>();
-
-                this.renderer.render(norm);
+        // If the buffer is big enough, it will process it
+        while samples.len() >= self.fft_size {
+            // Applies the windowing function and converts the samples to complex numbers
+            let samples = samples.drain(..self.fft_size);
+            let mut buf = Vec::with_capacity(self.fft_size);
+            for &i in self.window.window(samples.as_slice()).iter() {
+                buf.push(Complex::new(i, 0.));
             }
-        });
+
+            // Run the FFT
+            let fft = self.planner.lock().plan_fft_forward(self.fft_size);
+            fft.process(&mut buf);
+
+            // Slice the buffer to the display range
+            let sample_rate = self.ctx.sample_rate().input as usize;
+            let start = self.display_range.start * self.fft_size / sample_rate;
+            let end = self.display_range.end * self.fft_size / sample_rate;
+
+            // Normalize the complex numbers (r^2 + i^2)
+            let norm = buf[start.max(0)..=end.min(buf.len() / 2)]
+                .iter()
+                .map(|x| x.norm())
+                .collect::<Vec<_>>();
+
+            self.renderer.render(norm);
+        }
     }
 
     fn output(&self, output: &mut [f32]) {
@@ -262,6 +260,7 @@ impl Color {
         )
     }
 
+    #[cfg(feature = "gui")]
     fn to_slice(self) -> [u8; 4] {
         [self.r, self.g, self.b, 255]
     }

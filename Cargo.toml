@@ -20,13 +20,25 @@ rubato = "0.12.0"
 rustfft = "6.1.0"
 serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
+num-traits = "0.2.15"
 
 # GUI #
-egui = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
-egui_extras = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
-egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
-egui-winit = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886" }
-pixels = "0.12.1"
-winit = "0.27"
-winit_input_helper = "0.13"
-num-traits = "0.2.15"
+egui = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
+egui_extras = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
+egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
+egui-winit = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
+pixels = { version = "0.12.1", optional = true }
+winit = { version = "0.27", optional = true }
+winit_input_helper = { version = "0.13", optional = true }
+
+[features]
+default = ["gui"]
+gui = [
+    "dep:egui",
+    "dep:egui_extras",
+    "dep:egui-wgpu",
+    "dep:egui-winit",
+    "dep:pixels",
+    "dep:winit",
+    "dep:winit_input_helper",
+]
