@@ -19,6 +19,7 @@ use crate::audio::{algorithms::to_mono, passthrough::PassThrough, windows::Boxed
 use crate::misc::soon::Soon;
 
 mod console;
+mod egui;
 mod window;
 
 const FREQUENCY_UNITS: &[&str] = &["Hz", "kHz", "MHz", "GHz", "THz"];
@@ -59,6 +60,11 @@ pub enum DisplayType {
 trait Renderer {
     fn init(&self);
     fn render(&self, data: Vec<f32>);
+    fn block(&self) -> ! {
+        loop {
+            thread::park()
+        }
+    }
 }
 
 impl SpectrumAnalyzer {
@@ -181,6 +187,10 @@ impl Module for SpectrumAnalyzer {
         if let Some(i) = &self.passthrough {
             i.lock().write_output(output);
         }
+    }
+
+    fn block(&self) -> ! {
+        self.renderer.block()
     }
 }
 
