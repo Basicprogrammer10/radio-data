@@ -1,43 +1,55 @@
-use std::{process, sync::Arc};
+use std::{process, sync::Arc, thread, f32::consts::E};
 
 use crossbeam::channel;
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
 use macroquad::{
     color,
-    prelude::{is_key_down, scene::clear, KeyCode, WHITE},
+    miniquad::Texture,
+    prelude::{
+        is_key_down, is_quit_requested, prevent_quit, scene::clear, Color, KeyCode, BLACK, BLUE,
+        RED, WHITE,
+    },
     text::draw_text,
-    window::{clear_background, next_frame},
+    texture::{draw_texture, Image, Texture2D},
+    time::get_fps,
+    window::{clear_background, next_frame, screen_height, screen_width},
 };
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 
-use super::{nice_freq, Renderer, SpectrumAnalyzer};
+use super::{nice_freq, Renderer, SpectrumAnalyzer, get_color, color};
 
 pub struct WindowRenderer {
-    pub analyzer: Arc<SpectrumAnalyzer>,
-    history: Mutex<Vec<Vec<f32>>>,
+    analyzer: Arc<SpectrumAnalyzer>,
+    history: Arc<RwLock<Vec<Vec<f32>>>>,
 }
 
 impl Renderer for WindowRenderer {
     fn init(&self) {
-        macroquad::Window::new("Spectrum Analyzer", amain(self.analyzer.clone()));
+        let analyzer = self.analyzer.clone();
+        let history = self.history.clone();
+        thread::spawn(|| macroquad::Window::new("Spectrum Analyzer", amain(analyzer, history)));
     }
 
-    fn render(&self, data: Vec<f32>) {}
+    fn render(&self, data: Vec<f32>) {
+        self.history.write().push(data);
+    }
 }
 
 impl WindowRenderer {
     pub fn new(analyzer: Arc<SpectrumAnalyzer>) -> Self {
         Self {
             analyzer,
-            history: Mutex::new(Vec::new()),
+            history: Arc::new(RwLock::new(Vec::new())),
         }
     }
 }
 
-async fn amain(analyzer: Arc<SpectrumAnalyzer>) {
+async fn amain(analyzer: Arc<SpectrumAnalyzer>, history: Arc<RwLock<Vec<Vec<f32>>>>) {
+    prevent_quit();
+
     loop {
-        if is_key_down(KeyCode::Escape) {
+        if is_key_down(KeyCode::Escape) || is_quit_requested() {
             process::exit(0);
         }
 
@@ -49,6 +61,26 @@ async fn amain(analyzer: Arc<SpectrumAnalyzer>) {
         });
 
         clear_background(color::BLACK);
+
+        let size = (screen_width() as u16, screen_height() as u16);
+        let mut image = Image::gen_image_color(size.0, size.1, RED);
+
+        for (row_index, row) in history.read().iter().enumerate() {
+            for x in 0..size.0 {
+                let val = *row.get(x as usize).unwrap_or(&0.0);
+                let color = color(1. - E.powf(-val));
+                image.set_pixel(
+                    x as u32,
+                    row_index as u32,
+                    color.into(),
+                )
+            }
+        }
+
+        let texture = Texture2D::from_image(&image);
+        texture.update(&image);
+        draw_texture(texture, 0.0, 0.0, WHITE);
+
         egui_macroquad::draw();
         next_frame().await;
     }
@@ -56,12 +88,13 @@ async fn amain(analyzer: Arc<SpectrumAnalyzer>) {
 
 fn top_line(analyzer: Arc<SpectrumAnalyzer>, ui: &mut Ui) {
     let info = [
+        ("FPS", get_fps().to_string()),
         ("FFT size", analyzer.fft_size.to_string()),
         ("Window", analyzer.window.name().to_owned()),
         (
             "Domain",
             format!(
-                "{} to {}",
+                "{}..{}",
                 nice_freq(analyzer.display_range.start as f32),
                 nice_freq(analyzer.display_range.end as f32),
             ),

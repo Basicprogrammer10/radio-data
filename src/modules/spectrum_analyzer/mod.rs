@@ -263,3 +263,14 @@ impl From<Color> for style::Color {
         }
     }
 }
+
+impl From<Color> for macroquad::color::Color {
+    fn from(color: Color) -> Self {
+        macroquad::color::Color {
+            r: color.r as f32 / 255.,
+            g: color.g as f32 / 255.,
+            b: color.b as f32 / 255.,
+            a: 1.0,
+        }
+    }
+}
