@@ -35,15 +35,17 @@ struct Window {
     frame_history: RingBuffer<f32, 200>,
     /// Current window size
     size: (u32, u32),
+
+    // == Flags ==
     /// Whether the window was resized since the last frame
     resize: bool,
+    /// Wether a image capture should be saved next frame
+    capture: bool,
     /// If the info panel should be shown
     show_info: bool,
 }
 
 impl Renderer for WindowRenderer {
-    fn init(&self) {}
-
     fn render(&self, data: Vec<f32>) {
         self.window.lock().new.push_back(data);
     }
@@ -128,7 +130,9 @@ impl WindowRenderer {
                 last_frame: Instant::now(),
                 frame_history: RingBuffer::new(),
                 size: INIT_SIZE,
+
                 resize: false,
+                capture: false,
                 show_info: true,
             })),
         }
@@ -139,6 +143,11 @@ impl Window {
     fn draw(&mut self, image: &mut [u8]) {
         let (width, height) = (self.size.0 as usize, self.size.1 as usize);
         let gain = *self.analyzer.gain.read();
+
+        if self.capture {
+            self.capture = false;
+            
+        }
 
         if self.resize {
             self.resize = false;
@@ -232,10 +241,11 @@ impl Window {
         *self.analyzer.gain.write() = gain;
         ui.separator();
 
-        // Clear button
-        if ui.button("Clear").clicked() {
-            self.resize = true;
-        }
+        // Buttons
+        ui.horizontal(|ui| {
+            self.resize |= ui.button("Clear").clicked();
+            self.capture |= ui.button("Capture").clicked();
+        });
     }
 }
 

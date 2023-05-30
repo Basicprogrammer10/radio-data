@@ -51,7 +51,6 @@ pub struct SpectrumAnalyzer {
     // == Systems ==
     passthrough: Option<Mutex<PassThrough>>,
     renderer: Soon<Box<Arc<dyn Renderer + Send + Sync + 'static>>>,
-    this: Soon<Arc<SpectrumAnalyzer>>,
 }
 
 #[derive(ValueEnum, Clone, Copy)]
@@ -62,7 +61,7 @@ pub enum DisplayType {
 }
 
 trait Renderer {
-    fn init(&self);
+    fn init(&self) {}
     fn render(&self, data: Vec<f32>);
     fn block(&self) -> ! {
         loop {
@@ -108,7 +107,6 @@ impl SpectrumAnalyzer {
             planner: Mutex::new(FftPlanner::<f32>::new()),
             samples: Mutex::new(Vec::with_capacity(fft_size)),
 
-            this: Soon::empty(),
             renderer: Soon::empty(),
         });
 
@@ -119,7 +117,6 @@ impl SpectrumAnalyzer {
         };
 
         this.renderer.replace(renderer);
-        this.this.replace(this.clone());
         this
     }
 
