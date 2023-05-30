@@ -2,4 +2,4 @@
 
 Command-line ham radio utilities.
 
-![alacritty_yrKTr2NJcs](https://github.com/Basicprogrammer10/radio-data/assets/50306817/9b9732b7-2394-4253-ba18-6784e696aa80)
+![vExkMqmjkn](https://github.com/Basicprogrammer10/radio-data/assets/50306817/a8414a06-7da2-44cd-bb43-69e15e152c65)
