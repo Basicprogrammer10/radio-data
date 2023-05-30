@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, f32::consts::E, sync::Arc, time::Instant};
 
-use egui::{Context, RichText, Ui};
+use egui::{Align, Align2, Context, RichText, Slider, Ui};
 use egui_extras::{Column, TableBuilder};
 use parking_lot::Mutex;
 use pixels::{Pixels, SurfaceTexture};
@@ -18,19 +18,27 @@ use super::{
 };
 use crate::{misc::ring_buffer::RingBuffer, modules::spectrum_analyzer::Color};
 
-const INIT_SIZE: (u32, u32) = (320, 240);
+const INIT_SIZE: (u32, u32) = (1302, 675);
 
 pub struct WindowRenderer {
     window: Arc<Mutex<Window>>,
 }
 
 struct Window {
+    /// Reference to the analyzer struct
     analyzer: Arc<SpectrumAnalyzer>,
+    /// New ffted data to be drawn
     new: VecDeque<Vec<f32>>,
+    /// Last time the frame was drawn
     last_frame: Instant,
+    /// History of frame times
     frame_history: RingBuffer<f32, 200>,
+    /// Current window size
     size: (u32, u32),
+    /// Whether the window was resized since the last frame
     resize: bool,
+    /// If the info panel should be shown
+    show_info: bool,
 }
 
 impl Renderer for WindowRenderer {
@@ -81,8 +89,9 @@ impl Renderer for WindowRenderer {
                     pixels.resize_surface(size.width, size.height).unwrap();
                     framework.resize(size.width, size.height);
                     let mut win = win.lock();
+                    win.resize |= win.size.0 != size.width;
                     win.size = (size.width, size.height);
-                    win.resize = true;
+                    drop(win);
                 }
 
                 window.request_redraw();
@@ -120,6 +129,7 @@ impl WindowRenderer {
                 frame_history: RingBuffer::new(),
                 size: INIT_SIZE,
                 resize: false,
+                show_info: true,
             })),
         }
     }
@@ -128,6 +138,7 @@ impl WindowRenderer {
 impl Window {
     fn draw(&mut self, image: &mut [u8]) {
         let (width, height) = (self.size.0 as usize, self.size.1 as usize);
+        let gain = *self.analyzer.gain.read();
 
         if self.resize {
             self.resize = false;
@@ -139,8 +150,8 @@ impl Window {
         let mut xi = 0;
 
         while let Some(row) = self.new.pop_front() {
-            let points_per_px = row.len() as f32 / self.size.0 as f32;
-            let pxs_per_point = (self.size.0 as usize / row.len()).max(1);
+            let points_per_px = row.len() as f32 / width as f32;
+            let pxs_per_point = (width / row.len()).max(1);
 
             // scroll everything up one
             let prev = image[(width * 4)..(width * height * 4)].to_owned();
@@ -148,7 +159,7 @@ impl Window {
 
             // Draw new row
             for x in row {
-                points.push(x);
+                points.push(x * gain);
 
                 let err_points = points.len() as f32 + error;
                 if err_points >= points_per_px {
@@ -162,12 +173,13 @@ impl Window {
                         set_pixel(image, width, (xi, height - 1), color);
                         xi += 1;
                     }
+
+                    points.clear();
                 }
             }
 
             xi = 0;
             error = 0.0;
-            points.clear();
         }
     }
 
@@ -176,6 +188,8 @@ impl Window {
         self.last_frame = Instant::now();
         self.frame_history.push(delta);
 
+        // Main info table
+        // todo: maybe RMS and FFT resolution
         let analyzer = &self.analyzer;
         let info = [
             ("FPS", format!("{:.2}", self.frame_history.avg().recip())),
@@ -193,14 +207,11 @@ impl Window {
                     nice_freq(analyzer.display_range.end as f32),
                 ),
             ),
-            ("Gain", analyzer.gain.to_string()),
-            ("Res", "".to_string()),
-            ("Rms", "".to_string()),
         ];
 
         TableBuilder::new(ui)
             .column(Column::auto())
-            .column(Column::auto())
+            .column(Column::remainder())
             .body(|mut body| {
                 for i in info {
                     body.row(15.0, |mut row| {
@@ -213,6 +224,18 @@ impl Window {
                     });
                 }
             });
+        ui.separator();
+
+        // Gain Control
+        let mut gain = *self.analyzer.gain.read();
+        ui.add(Slider::new(&mut gain, 0.0..=1.0).text("Gain"));
+        *self.analyzer.gain.write() = gain;
+        ui.separator();
+
+        // Clear button
+        if ui.button("Clear").clicked() {
+            self.resize = true;
+        }
     }
 }
 
@@ -222,12 +245,23 @@ impl Gui for Arc<Mutex<Window>> {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.label(RichText::new("[RADIO-DATA SPECTRUM ANALYZER]").monospace());
+                ui.with_layout(egui::Layout::right_to_left(Align::Max), |ui| {
+                    this.show_info ^= ui.button("Menu").clicked();
+                });
             });
         });
 
-        egui::Window::new("Spectrum Analyzer").show(ctx, |ui| {
-            this.top_line(ui);
-        });
+        if !this.show_info {
+            return;
+        }
+
+        egui::Window::new("Spectrum Analyzer")
+            .anchor(Align2::RIGHT_TOP, [-10.0, 10.0])
+            .default_width(50.0)
+            .resizable(false)
+            .show(ctx, |ui| {
+                this.top_line(ui);
+            });
     }
 }
 

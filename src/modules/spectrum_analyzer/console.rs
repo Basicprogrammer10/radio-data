@@ -95,6 +95,7 @@ impl ConsoleRenderer {
         let console_size = terminal::size().unwrap();
         let bar_width = (console_size.0 as usize / data.len()).max(1);
         let points_per_char = data.len() as f32 / console_size.0 as f32;
+        let gain = *self.analyzer.gain.read();
 
         // Calculate the Root Mean Square (RMS) value of the data.
         // This is shown in the top bar
@@ -127,7 +128,7 @@ impl ConsoleRenderer {
 
         let prev_data = last_samples.as_ref().unwrap().iter().copied();
         for (i, e) in data.into_iter().zip(prev_data).enumerate() {
-            vals.push((e.0 * self.analyzer.gain, e.1 * self.analyzer.gain));
+            vals.push((e.0 * gain, e.1 * gain));
 
             let points = vals.len() as f32 + error;
             if points >= points_per_char {
@@ -223,7 +224,7 @@ impl ConsoleRenderer {
             self.analyzer.window.name(),
             nice_freq(self.analyzer.display_range.start as f32),
             nice_freq(self.analyzer.display_range.end as f32),
-            self.analyzer.gain,
+            self.analyzer.gain.read(),
             nice_freq(self.analyzer.resolution * points_per_char),
             rms
         );

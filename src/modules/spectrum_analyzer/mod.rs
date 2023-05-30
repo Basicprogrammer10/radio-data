@@ -8,6 +8,7 @@
 
 use std::{f32::consts::E, ops::Range, sync::Arc, thread};
 
+use ::egui::mutex::RwLock;
 use clap::ValueEnum;
 use crossterm::style;
 use num_complex::Complex;
@@ -39,7 +40,7 @@ pub struct SpectrumAnalyzer {
     ctx: InitContext,
     fft_size: usize,
     resolution: f32,
-    gain: f32,
+    gain: RwLock<f32>,
     display_range: Range<usize>,
     window: Arc<BoxedWindow>,
 
@@ -101,7 +102,7 @@ impl SpectrumAnalyzer {
             fft_size,
             display_range,
             window,
-            gain,
+            gain: RwLock::new(gain),
 
             passthrough,
             planner: Mutex::new(FftPlanner::<f32>::new()),
