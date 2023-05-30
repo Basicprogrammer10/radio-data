@@ -2,13 +2,15 @@ use std::{
     io::{stdout, Write},
     panic, process,
     sync::Arc,
+    thread,
     time::Duration,
 };
 
 use crate::{
-    misc::buf_writer::BufWriter,
+    misc::{buf_writer::BufWriter, soon::Soon},
     modules::spectrum_analyzer::{get_color, COLOR_SCHEME},
 };
+use crossbeam::channel::{self, Sender};
 use crossterm::{
     cursor,
     event::{self, KeyCode},
@@ -21,8 +23,9 @@ use super::{nice_freq, Renderer, SpectrumAnalyzer};
 const HALF_CHAR: &str = "▀";
 
 pub struct ConsoleRenderer {
-    pub analyzer: Arc<SpectrumAnalyzer>,
-    pub last_samples: Mutex<Option<Vec<f32>>>,
+    analyzer: Arc<SpectrumAnalyzer>,
+    last_samples: Mutex<Option<Vec<f32>>>,
+    render_thread: Soon<Sender<Vec<f32>>>,
 }
 
 impl Renderer for ConsoleRenderer {
@@ -57,11 +60,23 @@ impl Renderer for ConsoleRenderer {
 }
 
 impl ConsoleRenderer {
-    pub fn new(analyzer: Arc<SpectrumAnalyzer>) -> Self {
-        Self {
+    pub fn new(analyzer: Arc<SpectrumAnalyzer>) -> Arc<Self> {
+        let this = Arc::new(Self {
             analyzer,
             last_samples: Mutex::new(None),
-        }
+            render_thread: Soon::empty(),
+        });
+
+        let this_ref = this.clone();
+        let (tx, rx) = channel::unbounded();
+        thread::spawn(move || {
+            for i in rx {
+                this_ref.print_row(i)
+            }
+        });
+        this.render_thread.replace(tx);
+
+        this
     }
 
     fn print_row(&self, data: Vec<f32>) {

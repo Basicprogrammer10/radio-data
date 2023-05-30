@@ -49,7 +49,7 @@ pub struct SpectrumAnalyzer {
 
     // == Systems ==
     passthrough: Option<Mutex<PassThrough>>,
-    renderer: Soon<Box<dyn Renderer + Send + Sync + 'static>>,
+    renderer: Soon<Box<Arc<dyn Renderer + Send + Sync + 'static>>>,
     this: Soon<Arc<SpectrumAnalyzer>>,
 }
 
@@ -111,10 +111,10 @@ impl SpectrumAnalyzer {
             renderer: Soon::empty(),
         });
 
-        let renderer: Box<dyn Renderer + Send + Sync + 'static> = match renderer {
+        let renderer: Box<Arc<dyn Renderer + Send + Sync + 'static>> = match renderer {
             DisplayType::Console => Box::new(console::ConsoleRenderer::new(this.clone())),
             #[cfg(feature = "gui")]
-            DisplayType::Window => Box::new(window::WindowRenderer::new(this.clone())),
+            DisplayType::Window => Box::new(Arc::new(window::WindowRenderer::new(this.clone()))),
         };
 
         this.renderer.replace(renderer);
@@ -150,7 +150,7 @@ impl Module for SpectrumAnalyzer {
         // Adds the samples to a buffer
         let mut samples = self.samples.lock();
         samples.reserve(input.len() / self.ctx.input.channels() as usize + 1);
-        samples.extend(to_mono(&input, self.ctx.input.channels() as usize));
+        samples.extend(to_mono(input, self.ctx.input.channels() as usize));
 
         // If the buffer is big enough, it will process it
         while samples.len() >= self.fft_size {
