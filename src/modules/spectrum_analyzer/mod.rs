@@ -95,6 +95,25 @@ impl SpectrumAnalyzer {
             .get_one::<DisplayType>("display-type")
             .unwrap_or(&DisplayType::Console);
 
+        #[cfg(windows)]
+        if passthrough.is_some() {
+            println!("[I] Pass-through enabled, setting process priority to high");
+
+            use winapi::um::{
+                processthreadsapi::{GetCurrentProcess, SetPriorityClass},
+                winbase::HIGH_PRIORITY_CLASS,
+            };
+
+            let success = unsafe {
+                let process = GetCurrentProcess();
+                SetPriorityClass(process, HIGH_PRIORITY_CLASS)
+            };
+
+            if success == 0 {
+                println!("[E] Failed to set process priority");
+            }
+        }
+
         let this = Arc::new(Self {
             resolution: 1. / fft_size as f32 * ctx.sample_rate().input as f32,
             ctx,
