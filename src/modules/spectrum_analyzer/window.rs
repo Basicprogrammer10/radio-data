@@ -1,7 +1,9 @@
 use std::{collections::VecDeque, f32::consts::E, sync::Arc, time::Instant};
 
+use chrono::Local;
 use egui::{Align, Align2, Context, RichText, Slider, Ui};
 use egui_extras::{Column, TableBuilder};
+use image::{ImageBuffer, Rgba};
 use parking_lot::Mutex;
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
@@ -146,7 +148,13 @@ impl Window {
 
         if self.capture {
             self.capture = false;
-            
+            let buf =
+                ImageBuffer::<Rgba<u8>, _>::from_raw(width as u32, height as u32, image.to_owned())
+                    .unwrap();
+
+            let name = format!("capture-{}.png", Local::now().format("%Y-%m-%d-%H-%M-%S"));
+            buf.save(&name).unwrap();
+            println!("[*] Saving capture to `{}`", name);
         }
 
         if self.resize {
