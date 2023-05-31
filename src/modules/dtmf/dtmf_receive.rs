@@ -7,12 +7,13 @@ use parking_lot::Mutex;
 use crate::{
     coding::dtmf::{self, DtmfDecoder},
     consts::DTMF_CHUNK,
+    misc::soon::Soon,
     modules::{InitContext, Module},
 };
 
 pub struct DtmfReceive {
     ctx: InitContext,
-    decode: Mutex<Option<DtmfDecoder>>,
+    decode: Soon<Mutex<DtmfDecoder>>,
     work: Mutex<Vec<f32>>,
     history: Mutex<Vec<u8>>,
 }
@@ -20,7 +21,7 @@ pub struct DtmfReceive {
 impl DtmfReceive {
     pub fn new(ctx: InitContext) -> Arc<Self> {
         let out = Arc::new(Self {
-            decode: Mutex::new(None),
+            decode: Soon::empty(),
             work: Mutex::new(Vec::new()),
             history: Mutex::new(Vec::new()),
             ctx,
@@ -28,9 +29,10 @@ impl DtmfReceive {
 
         // Create a new DTMF decoder and set its callback to self.callback
         let this = out.clone();
-        *out.decode.lock() = Some(DtmfDecoder::new(out.ctx.sample_rate(), move |x| {
-            this.callback(x as char)
-        }));
+        out.decode.replace(Mutex::new(DtmfDecoder::new(
+            out.ctx.sample_rate(),
+            move |x| this.callback(x as char),
+        )));
 
         out
     }
@@ -81,7 +83,7 @@ impl Module for DtmfReceive {
         // If the data is at least DTMF_CHUNK long, process it
         for _ in 0..work.len() / DTMF_CHUNK {
             let chunk = work.drain(..DTMF_CHUNK).collect::<Vec<_>>();
-            self.decode.lock().as_mut().unwrap().process(&chunk);
+            self.decode.lock().process(&chunk);
         }
     }
 }

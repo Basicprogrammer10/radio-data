@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
-    event::{Event, VirtualKeyCode},
+    event::Event,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -79,7 +79,7 @@ impl Renderer for WindowRenderer {
         let win = self.window.clone();
         event_loop.run(move |event, _, control_flow| {
             if input.update(&event) {
-                if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                if input.quit() {
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
@@ -162,32 +162,35 @@ impl Window {
             image.iter_mut().for_each(|x| *x = 0);
         }
 
-        let mut error = 0.0;
+        let mut point_error = 0.0;
+        let mut pixel_error = 0.0;
         let mut points = Vec::new();
         let mut xi = 0;
 
         while let Some(row) = self.new.pop_front() {
             let points_per_px = row.len() as f32 / width as f32;
-            let pxs_per_point = (width / row.len()).max(1);
+            let pxs_per_point = points_per_px.recip();
 
-            // scroll everything up one
+            // scroll everything up one line
             let prev = image[(width * 4)..(width * height * 4)].to_owned();
             image[0..(width * (height - 1) * 4)].copy_from_slice(&prev);
 
             // Draw new row
             for x in row {
                 points.push(x * gain);
+                point_error += 1.0;
 
-                let err_points = points.len() as f32 + error;
-                if err_points >= points_per_px {
-                    error = err_points - points_per_px;
+                if point_error >= points_per_px {
+                    point_error -= 1.0;
 
                     let avg = points.iter().copied().sum::<f32>() / points.len() as f32;
                     let val = 1.0 - E.powf(-avg);
                     let color = color(val);
 
-                    for _ in 0..pxs_per_point {
+                    pixel_error += pxs_per_point;
+                    while pixel_error >= pxs_per_point {
                         set_pixel(image, width, (xi, height - 1), color);
+                        pixel_error -= 1.0;
                         xi += 1;
                     }
 
@@ -196,7 +199,8 @@ impl Window {
             }
 
             xi = 0;
-            error = 0.0;
+            point_error = 0.0;
+            pixel_error = 0.0;
         }
     }
 

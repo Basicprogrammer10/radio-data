@@ -93,8 +93,8 @@ impl ConsoleRenderer {
         // todo: maybe remove BufWriter
         let mut stdout = BufWriter::new(stdout());
         let console_size = terminal::size().unwrap();
-        let bar_width = (console_size.0 as usize / data.len()).max(1);
         let points_per_char = data.len() as f32 / console_size.0 as f32;
+        let bar_width = points_per_char.recip();
         let gain = *self.analyzer.gain.read();
 
         // Calculate the Root Mean Square (RMS) value of the data.
@@ -123,20 +123,24 @@ impl ConsoleRenderer {
         // Because the number of bins per char is not always an integer, we need to keep track of the error, so we can add it to the next char.
         let mut vals = Vec::new();
         let mut freq_labels = Vec::new();
-        let mut error = 0.;
+        let mut point_error = 0.0;
+        let mut char_error = 0.0;
         let mut full_size = 0;
 
         let prev_data = last_samples.as_ref().unwrap().iter().copied();
         for (i, e) in data.into_iter().zip(prev_data).enumerate() {
             vals.push((e.0 * gain, e.1 * gain));
+            point_error += 1.0;
 
-            let points = vals.len() as f32 + error;
-            if points >= points_per_char {
-                error = points - points_per_char;
+            if point_error >= points_per_char {
                 freq_labels.push((full_size, self.analyzer.index_to_freq(i)));
+                char_error += bar_width;
+                point_error -= 1.0;
 
-                let bar = HALF_CHAR.repeat(bar_width);
-                full_size += bar_width;
+                let width = (char_error / bar_width) as usize;
+                let bar = HALF_CHAR.repeat(width);
+                char_error -= width as f32;
+                full_size += width;
 
                 queue!(
                     stdout,
@@ -149,7 +153,7 @@ impl ConsoleRenderer {
             }
         }
 
-        // If we don't print a full line, we need to fill the rest with black.
+        // // If we don't print a full line, we need to fill the rest with black.
         if console_size.0 as usize > full_size {
             queue!(
                 stdout,
@@ -166,7 +170,7 @@ impl ConsoleRenderer {
         while i < freq_labels.len() {
             let val = &freq_labels[i];
             let freq = nice_freq(val.1);
-            i += (freq.len() + 3) / bar_width.max(1);
+            i += ((freq.len() as f32 + 3.0) / bar_width) as usize;
 
             if val.0 + freq.len() >= console_size.0 as usize {
                 break;

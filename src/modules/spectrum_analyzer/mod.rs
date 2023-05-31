@@ -8,11 +8,10 @@
 
 use std::{f32::consts::E, ops::Range, sync::Arc, thread};
 
-use ::egui::mutex::RwLock;
 use clap::ValueEnum;
 use crossterm::style;
 use num_complex::Complex;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rustfft::FftPlanner;
 
 use super::{InitContext, Module};
@@ -233,7 +232,7 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
 }
 
 unsafe fn set_prio() {
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     {
         use winapi::um::{
             processthreadsapi::{GetCurrentProcess, SetPriorityClass},
@@ -248,7 +247,7 @@ unsafe fn set_prio() {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     {
         use libc::{geteuid, setpriority, PRIO_PROCESS};
 
