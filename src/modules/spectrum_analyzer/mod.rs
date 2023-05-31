@@ -95,22 +95,10 @@ impl SpectrumAnalyzer {
             .get_one::<DisplayType>("display-type")
             .unwrap_or(&DisplayType::Console);
 
-        #[cfg(windows)]
         if passthrough.is_some() {
             println!("[I] Pass-through enabled, setting process priority to high");
-
-            use winapi::um::{
-                processthreadsapi::{GetCurrentProcess, SetPriorityClass},
-                winbase::HIGH_PRIORITY_CLASS,
-            };
-
-            let success = unsafe {
-                let process = GetCurrentProcess();
-                SetPriorityClass(process, HIGH_PRIORITY_CLASS)
-            };
-
-            if success == 0 {
-                println!("[E] Failed to set process priority");
+            unsafe {
+                set_prio();
             }
         }
 
@@ -242,6 +230,38 @@ fn get_color(vals: &[(f32, f32)], map: impl Fn(&(f32, f32)) -> f32) -> Color {
     let norm = 1. - E.powf(-avg);
 
     color(norm)
+}
+
+unsafe fn set_prio() {
+    #[cfg(target_os = "windows")]
+    {
+        use winapi::um::{
+            processthreadsapi::{GetCurrentProcess, SetPriorityClass},
+            winbase::HIGH_PRIORITY_CLASS,
+        };
+
+        let process = GetCurrentProcess();
+        let success = SetPriorityClass(process, HIGH_PRIORITY_CLASS);
+
+        if success == 0 {
+            println!("[E] Failed to set process priority");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use libc::{geteuid, setpriority, PRIO_PROCESS};
+
+        if geteuid() != 0 {
+            println!("[E] Failed to set process priority. Root access required.");
+            return;
+        }
+
+        let success = setpriority(PRIO_PROCESS, 0, -20);
+        if success == -1 {
+            println!("[E] Failed to set process priority");
+        }
+    }
 }
 
 /// RGB color

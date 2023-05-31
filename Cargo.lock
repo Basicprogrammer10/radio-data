@@ -2146,6 +2146,7 @@ dependencies = [
  "egui_extras",
  "hashbrown 0.13.2",
  "image",
+ "libc",
  "num-complex",
  "num-traits",
  "parking_lot",
