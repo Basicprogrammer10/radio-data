@@ -1,9 +1,11 @@
 use std::{collections::VecDeque, f32::consts::E, sync::Arc, time::Instant};
 
+use bitflags::bitflags;
 use chrono::Local;
 use egui::{Align, Align2, Context, RichText, Slider, Ui};
 use egui_extras::{Column, TableBuilder};
 use image::{ImageBuffer, Rgba};
+use indexmap::IndexMap;
 use parking_lot::Mutex;
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
@@ -26,6 +28,23 @@ pub struct WindowRenderer {
     window: Arc<Mutex<Window>>,
 }
 
+bitflags! {
+    #[derive(Clone, Copy)]
+    struct Flags: u8 {
+        const RESIZE      = 0b00000001;
+        const RECALC_FREQ = 0b00000010;
+        const CAPTURE     = 0b00000100;
+        const SHOW_INFO   = 0b00001000;
+    }
+}
+
+impl Flags {
+    fn set_or(&mut self, other: Flags, set: bool) {
+        let old = self.contains(other);
+        self.set(other, set || old);
+    }
+}
+
 struct Window {
     /// Reference to the analyzer struct
     analyzer: Arc<SpectrumAnalyzer>,
@@ -37,14 +56,13 @@ struct Window {
     frame_history: RingBuffer<f32, 200>,
     /// Current window size
     size: (u32, u32),
+    /// The frequency values at x coordinates
+    frequency_indexes: IndexMap<usize, f32>,
+    /// Mouse cursor position
+    mouse: Option<(f32, f32)>,
 
-    // == Flags ==
-    /// Whether the window was resized since the last frame
-    resize: bool,
-    /// Wether a image capture should be saved next frame
-    capture: bool,
-    /// If the info panel should be shown
-    show_info: bool,
+    /// Flags
+    flags: Flags,
 }
 
 impl Renderer for WindowRenderer {
@@ -93,11 +111,13 @@ impl Renderer for WindowRenderer {
                     pixels.resize_surface(size.width, size.height).unwrap();
                     framework.resize(size.width, size.height);
                     let mut win = win.lock();
-                    win.resize |= win.size.0 != size.width;
+                    let resize = win.size.0 != size.width;
                     win.size = (size.width, size.height);
-                    drop(win);
+                    win.flags.set(Flags::RECALC_FREQ, true);
+                    win.flags.set_or(Flags::RESIZE, resize);
                 }
 
+                win.lock().mouse = input.mouse();
                 window.request_redraw();
             }
 
@@ -106,7 +126,14 @@ impl Renderer for WindowRenderer {
                     framework.handle_event(&event);
                 }
                 Event::RedrawRequested(_) => {
-                    win.lock().draw(pixels.frame_mut());
+                    let mut win = win.lock();
+                    let delta = win.last_frame.elapsed().as_secs_f32();
+                    win.last_frame = Instant::now();
+                    win.frame_history.push(delta);
+
+                    win.draw(pixels.frame_mut());
+                    drop(win);
+
                     framework.prepare(&window);
 
                     pixels
@@ -131,11 +158,11 @@ impl WindowRenderer {
                 new: VecDeque::new(),
                 last_frame: Instant::now(),
                 frame_history: RingBuffer::new(),
+                frequency_indexes: IndexMap::new(),
+                mouse: None,
                 size: INIT_SIZE,
 
-                resize: false,
-                capture: false,
-                show_info: true,
+                flags: Flags::RECALC_FREQ | Flags::SHOW_INFO,
             })),
         }
     }
@@ -145,9 +172,12 @@ impl Window {
     fn draw(&mut self, image: &mut [u8]) {
         let (width, height) = (self.size.0 as usize, self.size.1 as usize);
         let gain = *self.analyzer.gain.read();
+        if self.flags.contains(Flags::RECALC_FREQ) {
+            self.frequency_indexes.clear();
+        }
 
-        if self.capture {
-            self.capture = false;
+        if self.flags.contains(Flags::CAPTURE) {
+            self.flags.set(Flags::CAPTURE, false);
             let buf =
                 ImageBuffer::<Rgba<u8>, _>::from_raw(width as u32, height as u32, image.to_owned())
                     .unwrap();
@@ -157,8 +187,8 @@ impl Window {
             println!("[*] Saving capture to `{}`", name);
         }
 
-        if self.resize {
-            self.resize = false;
+        if self.flags.contains(Flags::RESIZE) {
+            self.flags.set(Flags::RESIZE, false);
             image.iter_mut().for_each(|x| *x = 0);
         }
 
@@ -176,7 +206,7 @@ impl Window {
             image[0..(width * (height - 1) * 4)].copy_from_slice(&prev);
 
             // Draw new row
-            for x in row {
+            for (i, &x) in row.iter().enumerate() {
                 points.push(x * gain);
                 point_error += 1.0;
 
@@ -194,6 +224,11 @@ impl Window {
                         xi += 1;
                     }
 
+                    if self.flags.contains(Flags::RECALC_FREQ) {
+                        self.frequency_indexes
+                            .insert(xi, self.analyzer.index_to_freq(i));
+                    }
+
                     points.clear();
                 }
             }
@@ -202,17 +237,15 @@ impl Window {
             point_error = 0.0;
             pixel_error = 0.0;
         }
+
+        self.flags.set(Flags::RECALC_FREQ, false);
     }
 
     fn top_line(&mut self, ui: &mut Ui) {
-        let delta = self.last_frame.elapsed().as_secs_f32();
-        self.last_frame = Instant::now();
-        self.frame_history.push(delta);
-
         // Main info table
         // todo: maybe RMS and FFT resolution
         let analyzer = &self.analyzer;
-        let info = [
+        let mut info = [
             ("FPS", format!("{:.2}", self.frame_history.avg().recip())),
             ("FFT size", analyzer.fft_size.to_string()),
             (
@@ -228,7 +261,20 @@ impl Window {
                     nice_freq(analyzer.display_range.end as f32),
                 ),
             ),
-        ];
+        ]
+        .to_vec();
+
+        if let Some((x, _)) = self.mouse {
+            let freq = self
+                .frequency_indexes
+                .iter()
+                .filter(|i| *i.0 as f32 <= x)
+                .last();
+
+            if let Some(i) = freq {
+                info.push(("Frequency", nice_freq(*i.1)));
+            }
+        }
 
         TableBuilder::new(ui)
             .column(Column::auto())
@@ -255,8 +301,10 @@ impl Window {
 
         // Buttons
         ui.horizontal(|ui| {
-            self.resize |= ui.button("Clear").clicked();
-            self.capture |= ui.button("Capture").clicked();
+            self.flags
+                .set_or(Flags::RESIZE, ui.button("Clear").clicked());
+            self.flags
+                .set_or(Flags::CAPTURE, ui.button("Capture").clicked());
         });
     }
 }
@@ -268,12 +316,14 @@ impl Gui for Arc<Mutex<Window>> {
             egui::menu::bar(ui, |ui| {
                 ui.label(RichText::new("[RADIO-DATA SPECTRUM ANALYZER]").monospace());
                 ui.with_layout(egui::Layout::right_to_left(Align::Max), |ui| {
-                    this.show_info ^= ui.button("Menu").clicked();
+                    let clicked = ui.button("Menu").clicked();
+                    let old = this.flags.contains(Flags::SHOW_INFO);
+                    this.flags.set(Flags::SHOW_INFO, old ^ clicked);
                 });
             });
         });
 
-        if !this.show_info {
+        if !this.flags.contains(Flags::SHOW_INFO) {
             return;
         }
 

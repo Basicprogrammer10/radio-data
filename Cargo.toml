@@ -7,43 +7,45 @@ edition = "2021"
 [dependencies]
 afire = { version = "2.1.0", default-features = false, features = ["tracing"] }
 anyhow = "1.0.71"
+bitflags = "2.3.1"
 bitvec = "1.0.1"
+chrono = "0.4.25"
 clap = { version = "4.1.13", features = ["derive"] }
 cpal = "0.15.1"
 crossbeam = "0.8.2"
 crossterm = "0.26.1"
 hashbrown = "0.13.2"
+indexmap = "1.9.3"
 num-complex = "0.4.3"
+num-traits = "0.2.15"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 rubato = "0.12.0"
 rustfft = "6.1.0"
 serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
-num-traits = "0.2.15"
-chrono = "0.4.25"
 
 # GUI #
 egui = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
 egui_extras = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
 egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
 egui-winit = { git = "https://github.com/emilk/egui.git", rev = "f222ee044edf8beebfaf5dd7be15c9f318f20886", optional = true }
+image = { version = "0.24.6", optional = true }
 pixels = { version = "0.12.1", optional = true }
 winit = { version = "0.27", optional = true }
 winit_input_helper = { version = "0.13", optional = true }
-image = { version = "0.24.6", optional = true }
 
 [features]
 default = ["gui"]
 gui = [
-    "dep:egui",
     "dep:egui_extras",
     "dep:egui-wgpu",
     "dep:egui-winit",
-    "dep:pixels",
-    "dep:winit",
-    "dep:winit_input_helper",
+    "dep:egui",
     "dep:image",
+    "dep:pixels",
+    "dep:winit_input_helper",
+    "dep:winit",
 ]
 
 # Windows only #
