@@ -8,6 +8,7 @@ use crate::{
 };
 
 const MAGNITUDE_EPSILON: f32 = 0.05;
+const DURATION_EPSILON: f32 = 0.2;
 
 /// Encodes text into morse code.
 pub struct MorseEncoder {
@@ -139,11 +140,27 @@ impl MorseDecoder {
             self.state = val;
 
             if !val {
-                self.data.push(Morse::Gap);
+                let morse = match Morse::from_duration(
+                    &[Morse::Gap, Morse::Space],
+                    duration,
+                    self.dit_length,
+                ) {
+                    Some(i) => i,
+                    None => return,
+                };
+
+                if morse == Morse::Gap {
+                    self.data.push(Morse::Gap);
+                }
+
+                // TODO: decode and send char callback
+
                 return;
             }
 
-            if let Some(i) = dbg!(Morse::from_duration(duration, self.dit_length)) {
+            if let Some(i) =
+                Morse::from_duration(&[Morse::Dah, Morse::Dit], duration, self.dit_length)
+            {
                 self.data.push(i);
             }
         }
@@ -234,10 +251,10 @@ impl Morse {
         }
     }
 
-    fn from_duration(duration: f32, dit_length: u64) -> Option<Self> {
-        for &i in [Self::Space, Self::Dah, Self::Dit].iter() {
+    fn from_duration(options: &[Self], duration: f32, dit_length: u64) -> Option<Self> {
+        for &i in options.iter() {
             let delta = i.duration(dit_length) as f32 / 1000. - duration;
-            if delta.abs() < 0.2 {
+            if delta.abs() < DURATION_EPSILON {
                 return Some(i);
             }
         }
