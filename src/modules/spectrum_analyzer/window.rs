@@ -107,8 +107,10 @@ impl Renderer for WindowRenderer {
                 }
 
                 if let Some(size) = input.window_resized() {
-                    pixels.resize_buffer(size.width, size.height).unwrap();
-                    pixels.resize_surface(size.width, size.height).unwrap();
+                    // todo: dont panic on these errors, just print them
+                    // also todo: https://crates.io/crates/winres   - add an icon
+                    let _ = pixels.resize_buffer(size.width, size.height);
+                    let _ = pixels.resize_surface(size.width, size.height);
                     framework.resize(size.width, size.height);
                     let mut win = win.lock();
                     let resize = win.size.0 != size.width;
