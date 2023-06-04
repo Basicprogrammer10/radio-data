@@ -27,24 +27,6 @@ const INIT_SIZE: (u32, u32) = (1302, 675);
 pub struct WindowRenderer {
     window: Arc<Mutex<Window>>,
 }
-
-bitflags! {
-    #[derive(Clone, Copy)]
-    struct Flags: u8 {
-        const RESIZE      = 0b00000001;
-        const RECALC_FREQ = 0b00000010;
-        const CAPTURE     = 0b00000100;
-        const SHOW_INFO   = 0b00001000;
-    }
-}
-
-impl Flags {
-    fn set_or(&mut self, other: Flags, set: bool) {
-        let old = self.contains(other);
-        self.set(other, set || old);
-    }
-}
-
 struct Window {
     /// Reference to the analyzer struct
     analyzer: Arc<SpectrumAnalyzer>,
@@ -63,6 +45,23 @@ struct Window {
 
     /// Flags
     flags: Flags,
+}
+
+bitflags! {
+    #[derive(Clone, Copy)]
+    struct Flags: u8 {
+        const RESIZE      = 0b00000001;
+        const RECALC_FREQ = 0b00000010;
+        const CAPTURE     = 0b00000100;
+        const SHOW_INFO   = 0b00001000;
+    }
+}
+
+impl Flags {
+    fn set_or(&mut self, other: Flags, set: bool) {
+        let old = self.contains(other);
+        self.set(other, set || old);
+    }
 }
 
 impl Renderer for WindowRenderer {
