@@ -1,12 +1,13 @@
 use std::collections::VecDeque;
 
-use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
+use rubato::{
+    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+};
 
 use crate::modules::InitContext;
 
 /// Buffer time in seconds.
 /// This is the time the audio is buffered before it is written to the output.
-// const BUFFER_SIZE: f32 = 10.0 / 1000.0;
 const BUFFER_SIZE: f32 = 5.0 / 1000.0;
 
 /// Used to pass audio from the input to the output.
@@ -28,10 +29,10 @@ impl PassThrough {
     /// Creates a new pass-through
     pub fn new(ctx: InitContext, resample_size: usize) -> Self {
         let channels = ctx.input.channels().min(ctx.output.channels()) as usize;
-        let parameters = InterpolationParameters {
+        let parameters = SincInterpolationParameters {
             sinc_len: 256,
             f_cutoff: 0.95,
-            interpolation: InterpolationType::Linear,
+            interpolation: SincInterpolationType::Linear,
             oversampling_factor: 256,
             window: WindowFunction::BlackmanHarris2,
         };
