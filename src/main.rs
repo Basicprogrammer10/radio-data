@@ -7,7 +7,6 @@ use crate::audio::devices::get_devices;
 mod args;
 pub mod audio;
 mod coding;
-mod consts;
 mod misc;
 mod modules;
 

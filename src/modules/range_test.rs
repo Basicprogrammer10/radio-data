@@ -12,8 +12,9 @@ use super::{InitContext, Module};
 use crate::{
     audio::{sequence::Sequence, tone::Tone},
     coding::dtmf::DtmfDecoder,
-    consts::DTMF_CHUNK,
 };
+
+const DTMF_CHUNK: usize = 512;
 
 pub struct RangeTest {
     ctx: InitContext,
