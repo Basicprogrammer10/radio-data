@@ -83,12 +83,20 @@ impl MorseEncoder {
 
     /// Add text data to the encoder.
     pub fn add_data(&mut self, data: &str) -> anyhow::Result<()> {
-        self.data.extend(&Morse::from_str(data)?);
+        let morse = &Morse::from_str(data)?;
+        println!("{}", morse_str(morse));
+        self.data.extend(morse);
         if self.state == EncodeState::Idle {
             self.try_advance();
         }
 
         Ok(())
+    }
+
+    /// Check if the encoder is idle, meaning it has no more data to send.
+    /// In the `morse send` subcommand this will be used to quit when all data has been sent.
+    pub fn is_idle(&self) -> bool {
+        self.state == EncodeState::Idle
     }
 
     /// Tries to advance to the next Morse symbol, returns true if it was able to
@@ -136,6 +144,7 @@ impl MorseDecoder {
 
         if val != self.state {
             let duration = self.last_timestamp.elapsed().as_secs_f32();
+            println!("{} -> {} ({}s)", self.state, val, duration);
             self.last_timestamp = Instant::now();
             self.state = val;
 
@@ -151,10 +160,11 @@ impl MorseDecoder {
 
                 if morse == Morse::Gap {
                     self.data.push(Morse::Gap);
+                    return;
                 }
 
-                // TODO: decode and send char callback
-
+                println!("Got Char: {:?}", &self.data);
+                self.data.clear();
                 return;
             }
 
@@ -242,6 +252,15 @@ impl Morse {
         Ok(result)
     }
 
+    fn char_repr(&self) -> &str {
+        match self {
+            Self::Dit => ".",
+            Self::Dah => "-",
+            Self::Gap => "",
+            Self::Space => " ",
+        }
+    }
+
     fn duration(&self, dit_length: u64) -> u64 {
         match self {
             Self::Dit => dit_length,
@@ -261,6 +280,10 @@ impl Morse {
 
         None
     }
+}
+
+fn morse_str(bits: &[Morse]) -> String {
+    bits.iter().map(|i| i.char_repr()).collect()
 }
 
 use Morse::*;

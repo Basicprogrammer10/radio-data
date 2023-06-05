@@ -1,7 +1,7 @@
 //! Morse code module.
 //! Currently a work in progress.
 
-use std::sync::Arc;
+use std::{process, sync::Arc};
 
 use parking_lot::Mutex;
 
@@ -47,6 +47,10 @@ impl Module for MorseSend {
     fn output(&self, output: &mut [f32]) {
         // Just pass the data from the encoder to the output of each channel
         let mut encoder = self.encoder.lock();
+        if encoder.is_idle() {
+            process::exit(0);
+        }
+
         let mut last = 0.0;
         for (i, e) in output.iter_mut().enumerate() {
             if i % self.ctx.output.channels() as usize == 0 {
