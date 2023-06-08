@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    process,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use parking_lot::Mutex;
@@ -71,6 +74,7 @@ impl Module for DtmfSend {
 
     fn output(&self, output: &mut [f32]) {
         let mut last = 0.0;
+        let mut exit = false;
         for (i, e) in output.iter_mut().enumerate() {
             if i % self.ctx.output.channels() as usize == 0 {
                 // After one second of sending the HEAD tone, start sending the data
@@ -83,13 +87,20 @@ impl Module for DtmfSend {
                 // Get the next sample from either the HEAD tone or the DTMF encoder
                 let mut enc = self.state.lock();
                 last = match &mut *enc {
-                    State::Head(i) => i.next(),
-                    State::Transmitting => self.encode.lock().next(),
-                }
-                .unwrap_or(0.);
+                    State::Head(i) => i.next().unwrap(),
+                    State::Transmitting => {
+                        let val = self.encode.lock().next();
+                        exit |= val.is_none();
+                        val.unwrap_or(0.0)
+                    }
+                };
             }
 
             *e = last;
+        }
+
+        if exit {
+            process::exit(0);
         }
     }
 }
