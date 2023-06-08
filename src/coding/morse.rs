@@ -8,7 +8,7 @@ use crate::{
 };
 
 const MAGNITUDE_EPSILON: f32 = 0.05;
-const DURATION_EPSILON: f32 = 0.2;
+const DURATION_EPSILON: f32 = 0.15;
 
 /// Encodes text into morse code.
 pub struct MorseEncoder {
@@ -27,6 +27,7 @@ pub struct MorseDecoder {
 
     data: Vec<Morse>,
     state: bool,
+    sent_callback: bool,
     last_timestamp: Instant,
     callback: Box<dyn FnMut(&char) + Send + Sync + 'static>,
 }
@@ -132,6 +133,7 @@ impl MorseDecoder {
             dit_length,
 
             data: Vec::new(),
+            sent_callback: true,
             state: false,
             last_timestamp: Instant::now(),
             callback: Box::new(callback),
@@ -142,15 +144,25 @@ impl MorseDecoder {
         let mag = goertzel_mag(self.frequency, data, self.sample_rate.input);
         let val = mag > MAGNITUDE_EPSILON;
 
+        if !val
+            && !self.sent_callback
+            && self.last_timestamp.elapsed().as_secs_f32() >= self.dit_length as f32 * 10.0 / 1000.0
+        {
+            println!("END OF TRANSMISSION");
+            println!("Got Char: {:?}", &self.data);
+            self.sent_callback = true;
+        }
+
         if val != self.state {
             let duration = self.last_timestamp.elapsed().as_secs_f32();
             println!("{} -> {} ({}s)", self.state, val, duration);
             self.last_timestamp = Instant::now();
+            self.sent_callback = false;
             self.state = val;
 
             if !val {
                 let morse = match Morse::from_duration(
-                    &[Morse::Gap, Morse::Space],
+                    &[Morse::Dit, Morse::Dah],
                     duration,
                     self.dit_length,
                 ) {
@@ -158,20 +170,21 @@ impl MorseDecoder {
                     None => return,
                 };
 
-                if morse == Morse::Gap {
+                println!(" > {duration}s | {morse:?}");
+                self.data.push(morse);
+                return;
+            }
+
+            if let Some(i) =
+                Morse::from_duration(&[Morse::Gap, Morse::Space], duration, self.dit_length)
+            {
+                if i == Morse::Gap {
                     self.data.push(Morse::Gap);
                     return;
                 }
 
                 println!("Got Char: {:?}", &self.data);
                 self.data.clear();
-                return;
-            }
-
-            if let Some(i) =
-                Morse::from_duration(&[Morse::Dah, Morse::Dit], duration, self.dit_length)
-            {
-                self.data.push(i);
             }
         }
     }
@@ -256,8 +269,8 @@ impl Morse {
         match self {
             Self::Dit => ".",
             Self::Dah => "-",
-            Self::Gap => "",
-            Self::Space => " ",
+            Self::Gap => " ",
+            Self::Space => "  ",
         }
     }
 
