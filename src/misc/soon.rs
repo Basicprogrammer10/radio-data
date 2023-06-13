@@ -26,11 +26,6 @@ impl<T> Soon<T> {
     /// Replace whatever is in the `Soon` with a specified value.
     /// Please only call this once per soon object.
     pub fn replace(&self, val: T) {
-        #[cfg(debug_assertions)]
-        if !self.inner.as_ptr().is_null() {
-            panic!("Attempted to replace the value of an already filled `Soon`.")
-        }
-
         // SAFETY: nobody cares >:)
         let cell = self.inner.as_ptr() as *mut T;
         unsafe {

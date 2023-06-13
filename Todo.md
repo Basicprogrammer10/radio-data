@@ -31,7 +31,8 @@
 - [x] Allow picking windowing functions for spectrum analyzer
 - [x] Correctly implement windowing functions on the fft
 - [x] Add a gain control to the spectrum analyzer
-
-<!-- New since last update -->
-
 - [x] Move passthrough to its own module under audio
+- [x] GUI Spectrum Analyzer
+- [ ] Exit DTMF send when all data has been sent
+- [ ] MORSE CODE DECODING
+- [ ] Global system to play tone to actavate vox?
