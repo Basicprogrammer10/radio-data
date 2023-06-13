@@ -8,6 +8,7 @@ use crate::{
 };
 
 const MAGNITUDE_EPSILON: f32 = 0.05;
+// TODO: maybe use percentage of dit length instead of absolute value
 const DURATION_EPSILON: f32 = 0.2;
 
 /// Encodes text into morse code.
