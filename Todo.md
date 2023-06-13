@@ -36,3 +36,4 @@
 - [ ] Exit DTMF send when all data has been sent
 - [ ] MORSE CODE DECODING
 - [ ] Global system to play tone to actavate vox?
+- [ ] Global debug print system

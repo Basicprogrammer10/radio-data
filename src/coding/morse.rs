@@ -9,7 +9,7 @@ use crate::{
 
 const MAGNITUDE_EPSILON: f32 = 0.05;
 // TODO: maybe use percentage of dit length instead of absolute value
-const DURATION_EPSILON: f32 = 0.15;
+const DURATION_EPSILON: f32 = 0.2;
 
 /// Encodes text into morse code.
 pub struct MorseEncoder {
@@ -30,7 +30,7 @@ pub struct MorseDecoder {
     state: bool,
     sent_callback: bool,
     last_timestamp: Instant,
-    callback: Box<dyn FnMut(&char) + Send + Sync + 'static>,
+    callback: Box<dyn Fn(&char) + Send + Sync + 'static>,
 }
 
 /// The different symbols that can be encoded in morse code.
@@ -87,6 +87,7 @@ impl MorseEncoder {
     pub fn add_data(&mut self, data: &str) -> anyhow::Result<()> {
         let morse = &Morse::from_str(data)?;
         println!("{}", morse_str(morse));
+        dbg!(&morse);
         self.data.extend(morse);
         if self.state == EncodeState::Idle {
             self.try_advance();
@@ -126,8 +127,17 @@ impl MorseDecoder {
         sample_rate: SampleRate,
         frequency: f32,
         dit_length: u64,
-        callback: impl FnMut(&char) + Send + Sync + 'static,
+        callback: impl Fn(&char) + Send + Sync + 'static,
     ) -> Self {
+        println!(
+            "SPACE LEN: {}s",
+            Morse::Space.duration(dit_length) as f32 / 1000.0
+        );
+        println!(
+            "GAP LEN: {}s",
+            Morse::Gap.duration(dit_length) as f32 / 1000.0
+        );
+
         Self {
             sample_rate,
             frequency,
@@ -145,18 +155,17 @@ impl MorseDecoder {
         let mag = goertzel_mag(self.frequency, data, self.sample_rate.input);
         let val = mag > MAGNITUDE_EPSILON;
 
-        if !val
-            && !self.sent_callback
-            && self.last_timestamp.elapsed().as_secs_f32() >= self.dit_length as f32 * 10.0 / 1000.0
-        {
-            println!("END OF TRANSMISSION");
-            println!("Got Char: {:?}", &self.data);
+        let last_timestamp = self.last_timestamp.elapsed().as_secs_f32();
+        if !val && !self.sent_callback && last_timestamp >= self.dit_length as f32 * 10.0 / 1000.0 {
+            // println!("END OF TRANSMISSION");
+            // println!("Got Char: {:?}", &self.data);
+            self.send_callback(&self.data);
             self.sent_callback = true;
         }
 
         if val != self.state {
             let duration = self.last_timestamp.elapsed().as_secs_f32();
-            println!("{} -> {} ({}s)", self.state, val, duration);
+            // println!("{} -> {} ({}s)", self.state, val, duration);
             self.last_timestamp = Instant::now();
             self.sent_callback = false;
             self.state = val;
@@ -171,7 +180,7 @@ impl MorseDecoder {
                     None => return,
                 };
 
-                println!(" > {duration}s | {morse:?}");
+                // println!(" > {duration}s | {morse:?}");
                 self.data.push(morse);
                 return;
             }
@@ -179,15 +188,32 @@ impl MorseDecoder {
             if let Some(i) =
                 Morse::from_duration(&[Morse::Gap, Morse::Space], duration, self.dit_length)
             {
-                if i == Morse::Gap {
-                    self.data.push(Morse::Gap);
+                // println!("\\ {duration}s | {i:?}");
+                if i == Morse::Space {
+                    self.data.push(Morse::Space);
                     return;
                 }
 
-                println!("Got Char: {:?}", &self.data);
+                self.send_callback(&self.data);
                 self.data.clear();
+                return;
             }
+
+            // println!("\\ DELAY {duration}s");
         }
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.sent_callback
+    }
+
+    fn send_callback(&self, morse: &[Morse]) {
+        let chr = match morse_decode(morse) {
+            Some(i) => i,
+            None => '\0',
+        };
+
+        (self.callback)(&chr);
     }
 }
 
@@ -298,6 +324,10 @@ impl Morse {
 
 fn morse_str(bits: &[Morse]) -> String {
     bits.iter().map(|i| i.char_repr()).collect()
+}
+
+fn morse_decode(data: &[Morse]) -> Option<char> {
+    MORSE_ENCODING.iter().find(|(_, m)| m == &data).map(|x| x.0)
 }
 
 use Morse::*;
