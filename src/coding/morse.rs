@@ -7,9 +7,10 @@ use crate::{
     misc::SampleRate,
 };
 
-const MAGNITUDE_EPSILON: f32 = 0.05;
+const MAGNITUDE_EPSILON: f32 = 6.0;
 // TODO: maybe use percentage of dit length instead of absolute value
-const DURATION_EPSILON: f32 = 0.2;
+const DURATION_EPSILON: f32 = 1.5;
+const GAP_DURATION_EPSILON: f32 = 2.0;
 
 /// Encodes text into morse code.
 pub struct MorseEncoder {
@@ -137,6 +138,10 @@ impl MorseDecoder {
             "GAP LEN: {}s",
             Morse::Gap.duration(dit_length) as f32 / 1000.0
         );
+        println!(
+            "DURATION EPSILON: {}s",
+            DURATION_EPSILON * (dit_length as f32 / 1000.0)
+        );
 
         Self {
             sample_rate,
@@ -156,7 +161,7 @@ impl MorseDecoder {
         let val = mag > MAGNITUDE_EPSILON;
 
         let last_timestamp = self.last_timestamp.elapsed().as_secs_f32();
-        if !val && !self.sent_callback && last_timestamp >= self.dit_length as f32 * 10.0 / 1000.0 {
+        if !val && !self.sent_callback && last_timestamp >= self.dit_length as f32 * 20.0 / 1000.0 {
             // println!("END OF TRANSMISSION");
             // println!("Got Char: {:?}", &self.data);
             self.send_callback(&self.data);
@@ -175,6 +180,7 @@ impl MorseDecoder {
                     &[Morse::Dit, Morse::Dah],
                     duration,
                     self.dit_length,
+                    DURATION_EPSILON,
                 ) {
                     Some(i) => i,
                     None => return,
@@ -185,12 +191,16 @@ impl MorseDecoder {
                 return;
             }
 
-            if let Some(i) =
-                Morse::from_duration(&[Morse::Gap, Morse::Space], duration, self.dit_length)
-            {
+            if let Some(i) = Morse::from_duration(
+                &[Morse::Gap, Morse::Space],
+                duration,
+                self.dit_length,
+                GAP_DURATION_EPSILON,
+            ) {
                 // println!("\\ {duration}s | {i:?}");
                 if i == Morse::Space {
-                    self.data.push(Morse::Space);
+                    (self.callback)(&' ');
+                    self.data.clear();
                     return;
                 }
 
@@ -208,11 +218,7 @@ impl MorseDecoder {
     }
 
     fn send_callback(&self, morse: &[Morse]) {
-        let chr = match morse_decode(morse) {
-            Some(i) => i,
-            None => '\0',
-        };
-
+        let chr = morse_decode(morse).unwrap_or('\0');
         (self.callback)(&chr);
     }
 }
@@ -310,10 +316,16 @@ impl Morse {
         }
     }
 
-    fn from_duration(options: &[Self], duration: f32, dit_length: u64) -> Option<Self> {
+    fn from_duration(
+        options: &[Self],
+        duration: f32,
+        dit_length: u64,
+        duration_epsilon: f32,
+    ) -> Option<Self> {
+        let epsilon = dit_length as f32 / 1000. * duration_epsilon;
         for &i in options.iter() {
             let delta = i.duration(dit_length) as f32 / 1000. - duration;
-            if delta.abs() < DURATION_EPSILON {
+            if delta.abs() < epsilon {
                 return Some(i);
             }
         }

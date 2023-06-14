@@ -79,7 +79,8 @@ impl Module for DtmfSend {
             if i % self.ctx.output.channels() as usize == 0 {
                 // After one second of sending the HEAD tone, start sending the data
                 // Note: This probably shouldn't be run if the state is already transmitting
-                if self.i.fetch_add(1, Ordering::Relaxed) > self.ctx.input.sample_rate().0 as usize
+                if self.i.fetch_add(1, Ordering::Relaxed)
+                    > self.ctx.input.sample_rate().0 as usize * 2
                 {
                     *self.state.lock() = State::Transmitting;
                 }

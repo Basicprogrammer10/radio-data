@@ -107,7 +107,14 @@ impl PassThrough {
                 continue;
             }
 
-            *e = self.out_buffer[channel].pop_front().unwrap_or(0.0);
+            let channel_buf = match self.out_buffer.get_mut(channel) {
+                Some(x) => x,
+                None => {
+                    *e = 0.0;
+                    continue;
+                }
+            };
+            *e = channel_buf.pop_front().unwrap_or(0.0);
         }
     }
 }

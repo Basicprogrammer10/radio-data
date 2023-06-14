@@ -1,6 +1,9 @@
 //! Receive DTMF tones and decode them into binary data.
 
-use std::sync::Arc;
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
 
 use parking_lot::Mutex;
 
@@ -40,7 +43,11 @@ impl DtmfReceive {
 
     /// THis function is called when a byte is decoded.
     fn callback(&self, chr: char) {
-        println!("[*] Got code: {chr}");
+        let mut stdout = io::stdout();
+        stdout
+            .write_all(chr.encode_utf8(&mut [0; 4]).as_bytes())
+            .unwrap();
+        stdout.flush().unwrap();
 
         // Add the byte to the history
         let mut history = self.history.lock();
@@ -49,7 +56,7 @@ impl DtmfReceive {
         // If the history is long enough try to find the start and end codes
         // If these are found, decode the data and print it
         if history.len() > 2 && &history[history.len() - 2..] == b"#D" {
-            println!("[*] Transmission Complete");
+            println!("\n[*] Transmission Complete");
             let start = match history.windows(2).rposition(|x| x == b"A#") {
                 Some(i) => i,
                 None => {
@@ -59,7 +66,7 @@ impl DtmfReceive {
             };
 
             let raw = dtmf::dtmf_to_bin(&history[start + 2..&history.len() - 2]);
-            println!(" \\ {}", raw.iter().map(|x| *x as char).collect::<String>());
+            println!("{}", raw.iter().map(|x| *x as char).collect::<String>());
             history.clear();
         }
     }
